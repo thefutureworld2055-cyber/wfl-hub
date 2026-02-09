@@ -1,13 +1,139 @@
 <!doctype html>
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>WFL Hub</title>
-  </head>
-  <body>
-    <h1>WFL Hub</h1>
-    <p>If you can see this, your website is working.</p>
-    <p><a href="schedule.html">Go to the schedule</a></p>
-  </body>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WFL Hub</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, Arial, sans-serif;
+      background: #0b0f14;
+      color: #e6edf3;
+    }
+
+    header {
+      background: #111827;
+      border-bottom: 2px solid #1f2a37;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 1px;
+    }
+
+    nav a {
+      color: #93c5fd;
+      text-decoration: none;
+      font-weight: 700;
+      margin-left: 16px;
+    }
+
+    nav a:hover {
+      text-decoration: underline;
+    }
+
+    main {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 16px;
+    }
+
+    .card {
+      background: #0f1623;
+      border: 1px solid #1f2a37;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      margin-top: 0;
+      border-bottom: 1px solid #1f2a37;
+      padding-bottom: 6px;
+    }
+
+    .muted {
+      color: #9aa4b2;
+      font-size: 14px;
+    }
+
+    ul {
+      padding-left: 18px;
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>WFL HUB</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2>Week Pulse</h2>
+          <p class="muted">Short weekly recap — this is the heart of between-game activity.</p>
+          <p>
+            Dallas is surging at the right time, Berlin keeps surviving late,
+            and Saint Catherine’s season is slipping away.
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>Storylines</h2>
+          <ul>
+            <li>Is Dallas the most dangerous team right now?</li>
+            <li>Berlin’s defense is carrying the season.</li>
+            <li>Who’s the biggest fraud in the league?</li>
+          </ul>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h2>Game of the Week</h2>
+          <p><strong>Berlin vs Madrid</strong></p>
+          <p class="muted">Saturday Night</p>
+          <p>
+            A clash of styles that could reshape the standings.
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>Fan Activity</h2>
+          <p class="muted">Give fans something to click.</p>
+          <ul>
+            <li>Vote: Who’s overrated?</li>
+            <li>Predict the upset</li>
+            <li>Power rankings debate</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
 </html>
