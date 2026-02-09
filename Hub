@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+  <title>WFL</title>
+</head>
+<body>
+  <h1>Welcome to the WFL</h1>
+
+  <p>This is the home of the league.</p>
+
+  <p>
+    <a href="schedule.html">Click here for the schedule</a>
+  </p>
+
+  <h2>Weekly Update</h2>
+  <p>
+    Put your weekly recap here.
+  </p>
+</body>
+</html>
