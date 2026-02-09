@@ -1,16 +1,37 @@
-<div class="card">
-  <h2>Schedule & Standings</h2>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WFL — Schedule & Standings</title>
+  <link rel="stylesheet" href="style.css">
+</head>
 
-  <!-- PLAYPASS SCHEDULE + STANDINGS EMBED -->
-  <div class="playpass-widget">
-    <script src="https://playpass.com/widgets/RofTqAe.js"></script>
-    <p style="font-size:12px; color:#9aa4b2;">
-      Schedule created with
-      <a href="https://playpass.com/sports-software/football-schedule-maker"
-         style="color:#93c5fd;">
-        football scheduler
-      </a>
-      by Playpass
-    </p>
-  </div>
-</div>
+<body>
+  <header>
+    <h1>WFL HUB</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <div class="card">
+      <h2>Schedule & Standings</h2>
+      <p class="muted">Updated automatically via Playpass.</p>
+
+      <div class="embed-wrap">
+        <div class="playpass-widget">
+          <script src="https://playpass.com/widgets/RofTqAe.js"></script>
+          <p class="muted" style="margin:10px 0 0 0; font-size:12px;">
+            Schedule created with
+            <a href="https://playpass.com/sports-software/football-schedule-maker">football scheduler</a>
+            by Playpass
+          </p>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
