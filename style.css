@@ -1,0 +1,89 @@
+:root{
+  --bg:#0b0f14;
+  --card:#0f1623;
+  --border:#1f2a37;
+  --text:#e6edf3;
+  --muted:#9aa4b2;
+  --link:#93c5fd;
+  --header:#111827;
+}
+
+*{ box-sizing:border-box; }
+
+body{
+  margin:0;
+  font-family:system-ui, Arial, sans-serif;
+  background:var(--bg);
+  color:var(--text);
+}
+
+header{
+  background:var(--header);
+  border-bottom:2px solid var(--border);
+  padding:16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  position:sticky;
+  top:0;
+  z-index:10;
+}
+
+header h1{
+  margin:0;
+  font-size:18px;
+  letter-spacing:1px;
+}
+
+nav a{
+  color:var(--link);
+  text-decoration:none;
+  font-weight:800;
+  margin-left:14px;
+}
+
+nav a:hover{ text-decoration:underline; }
+
+.wrap{
+  max-width:1100px;
+  margin:0 auto;
+  padding:18px;
+}
+
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:16px;
+  margin:14px 0;
+}
+
+h2{
+  margin:0 0 10px 0;
+  padding-bottom:8px;
+  border-bottom:1px solid var(--border);
+}
+
+.muted{ color:var(--muted); }
+
+.embed-wrap{
+  background:#0b1220;
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:12px;
+  overflow:hidden;
+}
+
+/* Makes the Playpass widget not jam against edges */
+.playpass-widget{
+  width:100%;
+}
+
+/* Optional: make links inside embed area readable */
+.embed-wrap a{ color:var(--link); }
+
+/* Mobile */
+@media (max-width:900px){
+  header{ padding:12px; }
+  nav a{ margin-left:10px; }
+}
