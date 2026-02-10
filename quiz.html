@@ -121,10 +121,72 @@
    The quiz matches tags to answers.
 */
 const WFL_TEAMS = [
-  { name: "Dallas", tags: ["explosive","chaos","clutch","glory","memes"] , blurb:"High-octane and stressful. If you love fireworks and drama, this is your home." },
-  { name: "Berlin", tags: ["defense","respect","clutch","balanced"] , blurb:"Tough, disciplined, and always alive late. You like structure and survival." },
-  { name: "Saint Catherine", tags: ["heartbreak","rebuild","underdog","clutch"] , blurb:"The suffering builds character. If you love hope, pain, and loyalty—welcome." },
-  { name: "San Francisco", tags: ["balanced","dynasty","glory"] , blurb:"Win-now energy. You want a team that expects to matter every week." }
+  { name: "New Jerusalem", tags: ["balanced","glory","underdog"], blurb:"Smart, composed, and built for big moments." },
+  { name: "Jerusalem", tags: ["defense","respect","clutch"], blurb:"Tough identity, disciplined style, and lives for tight finishes." },
+  { name: "Stockholm", tags: ["balanced","respect","dynasty"], blurb:"Clean football, steady control, and high expectations." },
+  { name: "Springfield", tags: ["chaos","memes","underdog"], blurb:"Unpredictable energy. Anything can happen, for better or worse." },
+  { name: "San Fransisco", tags: ["explosive","dynasty","glory"], blurb:"Win-now vibes with fireworks on offense." },
+  { name: "Tombstone", tags: ["grind","respect","villain"], blurb:"Physical, stubborn, and not here to be liked." },
+  { name: "Wallerock", tags: ["clutch","heartbreak","underdog"], blurb:"Drama magnet. If you love close games, you’ll suffer happily." },
+  { name: "Dallas", tags: ["explosive","memes","chaos"], blurb:"High-octane and stressful. You don’t want calm—you want highlights." },
+  { name: "Phoenix", tags: ["balanced","rebuild","underdog"], blurb:"A rise-from-ashes vibe—patient fans get paid off." },
+  { name: "Houston", tags: ["grind","glory","respect"], blurb:"Old-school strength with a desire to prove something." },
+
+  { name: "Tampa", tags: ["clutch","glory","balanced"], blurb:"Big swings, big endings—always a late-game story." },
+  { name: "Los Angeles", tags: ["explosive","glory","villain"], blurb:"Flash, confidence, and headline energy." },
+  { name: "Boise", tags: ["defense","rebuild","underdog"], blurb:"Hard-nosed and climbing—built to frustrate favorites." },
+  { name: "Denver", tags: ["balanced","heartbreak","clutch"], blurb:"Good enough to win, chaotic enough to hurt you." },
+  { name: "Miami", tags: ["explosive","memes","glory"], blurb:"Speed, swagger, and streaky momentum." },
+  { name: "Helsinki", tags: ["defense","respect","balanced"], blurb:"Cold-blooded discipline. They don’t beat themselves." },
+  { name: "Warsaw", tags: ["grind","respect","underdog"], blurb:"Grit first. If you like physical football, this is your home." },
+  { name: "Zurich", tags: ["balanced","dynasty","respect"], blurb:"Efficient, controlled, and allergic to sloppy play." },
+  { name: "Berlin", tags: ["defense","clutch","glory"], blurb:"Survival specialists—always alive late." },
+  { name: "Oslo", tags: ["grind","heartbreak","underdog"], blurb:"Tough roads, tough wins, tough losses—never boring." },
+
+  { name: "Sarajevo", tags: ["chaos","rebuild","underdog"], blurb:"Wild swings and weird outcomes—the chaos fans’ choice." },
+  { name: "Atlanta", tags: ["explosive","glory","balanced"], blurb:"Big plays and big expectations—built to entertain." },
+  { name: "New England", tags: ["balanced","dynasty","villain"], blurb:"Clinical and confident—people will call them overrated until they win again." },
+  { name: "Seattle", tags: ["defense","glory","clutch"], blurb:"Hard defense with a knack for turning games in one moment." },
+  { name: "Liverpool", tags: ["clutch","memes","heartbreak"], blurb:"Late drama, loud opinions, and emotional whiplash." },
+  { name: "Saint Catherine", tags: ["heartbreak","rebuild","underdog"], blurb:"The loyal fan’s team—hope, pain, and eventual payoff." },
+  { name: "Malmo", tags: ["balanced","respect","underdog"], blurb:"Underrated and steady—quietly dangerous when ignored." },
+  { name: "Lisbon", tags: ["explosive","rebuild","chaos"], blurb:"High ceiling, high variance—boom or bust every week." },
+  { name: "Madrid", tags: ["balanced","glory","clutch"], blurb:"Big-stage energy—built for spotlight games." },
+  { name: "Nicosia", tags: ["defense","villain","respect"], blurb:"Mean defense and a chip on the shoulder—easy to hate, hard to beat." },
+
+  { name: "New Jerusalem City", tags: ["chaos","memes","glory"], blurb:"Pure spectacle—if you want headlines, this is it." },
+  { name: "Paris", tags: ["balanced","glory","dynasty"], blurb:"Elegant, confident, and expects to be in the conversation." },
+  { name: "Cork", tags: ["grind","underdog","rebuild"], blurb:"Scrappy, stubborn, and always fighting uphill." },
+  { name: "Dublin", tags: ["clutch","respect","heartbreak"], blurb:"Tight games and high emotion—wins feel earned, losses feel personal." },
+  { name: "New York", tags: ["explosive","villain","glory"], blurb:"Big-city swagger—built to be talked about." },
+  { name: "Arusha", tags: ["balanced","rebuild","underdog"], blurb:"Patient growth, steady identity, and a surprise-run ceiling." },
+  { name: "Medina", tags: ["defense","respect","glory"], blurb:"Structured and serious—wins are statements." },
+  { name: "Lyon", tags: ["balanced","memes","clutch"], blurb:"A rollercoaster team—never the same twice." },
+  { name: "Palermo", tags: ["grind","villain","clutch"], blurb:"Physical, nasty, and built for ugly wins." },
+  { name: "Kiev", tags: ["defense","underdog","heartbreak"], blurb:"Hard defense and harder luck—fans who stick get rewarded." }
+];
+
+/* Optional: small NFL “vibe” hints (you can add more later) */
+const NFL_HINTS = [
+  { match: ["cowboys","dallas"], tagBoost: { "Dallas": 2 } },
+  { match: ["broncos","denver"], tagBoost: { "Denver": 1, "Boise": 1 } },
+  { match: ["seahawks","seattle"], tagBoost: { "Seattle": 2 } },
+  { match: ["patriots","new england"], tagBoost: { "New England": 2 } },
+  { match: ["giants","jets","new york"], tagBoost: { "New York": 2 } },
+  { match: ["dolphins","miami"], tagBoost: { "Miami": 2 } }
+];
+
+/* Optional: location hints (very light) */
+const LOCATION_HINTS = [
+  { match: ["texas","tx"], tagBoost: { "Dallas": 1, "Houston": 1 } },
+  { match: ["sweden"], tagBoost: { "Stockholm": 1, "Malmo": 1 } },
+  { match: ["finland"], tagBoost: { "Helsinki": 1 } },
+  { match: ["germany"], tagBoost: { "Berlin": 1 } },
+  { match: ["spain"], tagBoost: { "Madrid": 1 } },
+  { match: ["portugal"], tagBoost: { "Lisbon": 1 } },
+  { match: ["ireland"], tagBoost: { "Dublin": 1, "Cork": 1 } },
+  { match: ["switzerland"], tagBoost: { "Zurich": 1 } },
+  { match: ["ukraine"], tagBoost: { "Kiev": 1 } }
 ];
 
 // Optional: small NFL “vibe” hints (you can add more)
