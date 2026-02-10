@@ -1,0 +1,563 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WFL — Endless Runner</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .hud { display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
+    .hud span { display:inline-block; padding:6px 10px; border:1px solid var(--border); border-radius:12px; background:#0b1220; }
+    canvas { width:100%; max-width: 980px; border:1px solid var(--border); border-radius:14px; background:#0b1220; display:block; }
+    .hint { font-size:12px; color:var(--muted); margin-top:10px; }
+    .btnrow { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+    button{
+      padding:10px 14px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:#0b1220;
+      color:var(--text);
+      cursor:pointer;
+      font-weight:900;
+    }
+    button:hover{ border-color: var(--link); }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>WFL HUB</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="game.html">Game</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <div class="card">
+      <h2>WFL Endless Runner</h2>
+      <div class="hud">
+        <span><strong>Score:</strong> <span id="score">0</span></span>
+        <span><strong>High:</strong> <span id="high">0</span></span>
+        <span><strong>Speed:</strong> <span id="spd">1.0x</span></span>
+        <span><strong>Mode:</strong> <span id="mode">Running</span></span>
+      </div>
+
+      <div class="btnrow">
+        <button id="btnStart">Start / Restart</button>
+        <button id="btnPause">Pause</button>
+      </div>
+
+      <p class="hint">
+        Controls: <strong>Space / ↑ / Click / Tap</strong> to jump • <strong>↓</strong> to slide under hurdles •
+        On game over, press <strong>Start</strong> or <strong>Space</strong>.
+      </p>
+
+      <canvas id="c" width="980" height="420"></canvas>
+      <p class="hint">Tip: This is “arcade canon.” Weak games don’t matter when your fans can play the WFL.</p>
+    </div>
+  </main>
+
+<script>
+(() => {
+  // ---------- Canvas / UI ----------
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
+
+  const scoreEl = document.getElementById("score");
+  const highEl = document.getElementById("high");
+  const spdEl = document.getElementById("spd");
+  const modeEl = document.getElementById("mode");
+
+  const btnStart = document.getElementById("btnStart");
+  const btnPause = document.getElementById("btnPause");
+
+  // ---------- Helpers ----------
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const choice = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+  function aabb(ax, ay, aw, ah, bx, by, bw, bh) {
+    return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+  }
+
+  // ---------- Game Settings ----------
+  const W = canvas.width;
+  const H = canvas.height;
+
+  const groundY = 330;          // top of ground line
+  const gravity = 2200;         // px/s^2
+  const jumpVel = 860;          // px/s
+  const slideDuration = 0.55;   // seconds
+
+  const baseSpeed = 380;        // px/s
+  const speedGain = 10;         // px/s per ~second-ish (scaled)
+  const spawnBase = 1.1;        // seconds
+  const spawnMin = 0.55;        // seconds
+
+  // ---------- State ----------
+  let running = false;
+  let paused = false;
+  let gameOver = false;
+
+  let tPrev = performance.now();
+  let score = 0;
+  let high = Number(localStorage.getItem("wfl_runner_high") || 0);
+
+  let speed = baseSpeed;
+  let spawnTimer = 0;
+  let spawnEvery = spawnBase;
+
+  // Parallax
+  let bg1 = 0, bg2 = 0;
+
+  // ---------- Player (pixel-ish drawn in code) ----------
+  const player = {
+    x: 140,
+    y: groundY - 72,
+    w: 42,
+    h: 72,
+    vy: 0,
+    onGround: true,
+    sliding: false,
+    slideT: 0,
+    animT: 0
+  };
+
+  function playerBox() {
+    // Slightly forgiving hitbox
+    const pad = 6;
+    return {
+      x: player.x + pad,
+      y: player.y + pad,
+      w: player.w - pad*2,
+      h: player.h - pad*2
+    };
+  }
+
+  function startGame() {
+    running = true;
+    paused = false;
+    gameOver = false;
+
+    score = 0;
+    speed = baseSpeed;
+    spawnTimer = 0;
+    spawnEvery = spawnBase;
+
+    obstacles.length = 0;
+    bg1 = 0; bg2 = 0;
+
+    player.y = groundY - 72;
+    player.vy = 0;
+    player.onGround = true;
+    player.sliding = false;
+    player.slideT = 0;
+    player.animT = 0;
+
+    syncUI();
+  }
+
+  function endGame() {
+    gameOver = true;
+    running = true; // keep rendering
+    if (score > high) {
+      high = score;
+      localStorage.setItem("wfl_runner_high", String(high));
+    }
+    syncUI();
+  }
+
+  function togglePause() {
+    if (!running || gameOver) return;
+    paused = !paused;
+    syncUI();
+  }
+
+  function syncUI() {
+    scoreEl.textContent = score.toString();
+    highEl.textContent = high.toString();
+    spdEl.textContent = (speed / baseSpeed).toFixed(1) + "x";
+    if (gameOver) modeEl.textContent = "Game Over";
+    else if (paused) modeEl.textContent = "Paused";
+    else if (player.sliding) modeEl.textContent = "Sliding";
+    else modeEl.textContent = "Running";
+  }
+
+  // ---------- Obstacles ----------
+  const obstacles = [];
+
+  function spawnObstacle() {
+    // Football-themed obstacle types:
+    // cone: small ground
+    // dummy: tall ground
+    // hurdle: overhead (must slide)
+    // football: rolling ground
+    const type = choice(["cone", "dummy", "hurdle", "football"]);
+
+    let o = { type, x: W + 30, y: 0, w: 0, h: 0, vy: 0, rot: 0 };
+
+    if (type === "cone") {
+      o.w = 26; o.h = 34;
+      o.y = groundY - o.h;
+    } else if (type === "dummy") {
+      o.w = 34; o.h = 62;
+      o.y = groundY - o.h;
+    } else if (type === "hurdle") {
+      // place higher so jumping doesn't always solve it; sliding is intended
+      o.w = 62; o.h = 26;
+      o.y = groundY - 96; // overhead bar
+    } else if (type === "football") {
+      o.w = 34; o.h = 22;
+      o.y = groundY - o.h;
+      o.vy = 0;
+      o.rot = rand(0, Math.PI * 2);
+    }
+
+    obstacles.push(o);
+  }
+
+  // ---------- Input ----------
+  function jump() {
+    if (!running) return;
+    if (gameOver) { startGame(); return; }
+    if (paused) return;
+
+    if (player.onGround && !player.sliding) {
+      player.vy = -jumpVel;
+      player.onGround = false;
+    }
+  }
+
+  function slide() {
+    if (!running || paused || gameOver) return;
+    if (player.onGround && !player.sliding) {
+      player.sliding = true;
+      player.slideT = slideDuration;
+      // lower hitbox by changing player height temporarily
+      player.h = 52;
+      player.y = groundY - player.h;
+    }
+  }
+
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space" || e.code === "ArrowUp") { e.preventDefault(); jump(); }
+    if (e.code === "ArrowDown") { e.preventDefault(); slide(); }
+    if (e.code === "KeyP") { e.preventDefault(); togglePause(); }
+  });
+
+  canvas.addEventListener("pointerdown", () => jump());
+
+  btnStart.addEventListener("click", () => startGame());
+  btnPause.addEventListener("click", () => togglePause());
+
+  // ---------- Drawing ----------
+  function clear() {
+    ctx.clearRect(0, 0, W, H);
+  }
+
+  function drawBackground(dt) {
+    // simple parallax stripes + stadium lights
+    bg1 = (bg1 - speed * 0.10 * dt) % W;
+    bg2 = (bg2 - speed * 0.25 * dt) % W;
+
+    // sky
+    ctx.fillStyle = "#09101e";
+    ctx.fillRect(0, 0, W, H);
+
+    // far stands
+    ctx.fillStyle = "#0c1730";
+    for (let x = bg1; x < W + 80; x += 80) {
+      ctx.fillRect(x, 120, 60, 70);
+    }
+
+    // lights
+    ctx.fillStyle = "#1b2a4a";
+    for (let x = bg2; x < W + 120; x += 120) {
+      ctx.fillRect(x, 70, 12, 80);
+      ctx.fillRect(x - 18, 70, 12, 60);
+      ctx.fillRect(x + 18, 70, 12, 60);
+    }
+
+    // ground
+    ctx.fillStyle = "#071225";
+    ctx.fillRect(0, groundY, W, H - groundY);
+
+    // yard ticks
+    ctx.fillStyle = "#0e2550";
+    for (let x = (bg2 * -1) % 60; x < W; x += 60) {
+      ctx.fillRect(x, groundY + 22, 6, 18);
+    }
+
+    // ground line
+    ctx.fillStyle = "#123062";
+    ctx.fillRect(0, groundY, W, 3);
+  }
+
+  function drawPlayer(dt) {
+    // SNES-ish chunky pixels by drawing rectangles; no external sprite needed.
+    player.animT += dt;
+    const step = Math.sin(player.animT * 14) * 2; // run bob
+
+    const x = player.x;
+    const y = player.y + (player.onGround && !player.sliding ? step : 0);
+
+    // palette
+    const skin = "#4b2a1a";          // dark skin tone
+    const jersey = "#2a0f56";        // dark purple jersey
+    const helmet = "#3a1475";        // purple helmet
+    const orange = "#f08a1a";        // orange highlights
+    const pants = "#e8eef7";         // white pants
+    const shadow = "#0b0f1b";
+
+    // shadow
+    ctx.fillStyle = shadow;
+    ctx.globalAlpha = 0.35;
+    ctx.fillRect(x + 6, groundY + 8, 36, 10);
+    ctx.globalAlpha = 1;
+
+    // body proportions
+    const w = player.w;
+    const h = player.h;
+
+    // legs (pants)
+    ctx.fillStyle = pants;
+    const legSwing = player.onGround && !player.sliding ? Math.sin(player.animT * 14) * 6 : 0;
+    ctx.fillRect(x + 10 + legSwing * 0.10, y + h - 26, 10, 20);
+    ctx.fillRect(x + 22 - legSwing * 0.10, y + h - 26, 10, 20);
+
+    // orange stripe on pants
+    ctx.fillStyle = orange;
+    ctx.fillRect(x + 20, y + h - 26, 4, 20);
+
+    // shoes
+    ctx.fillStyle = "#0a0a0a";
+    ctx.fillRect(x + 9, y + h - 8, 12, 8);
+    ctx.fillRect(x + 21, y + h - 8, 12, 8);
+
+    // torso (jersey)
+    ctx.fillStyle = jersey;
+    ctx.fillRect(x + 10, y + 24, 24, 26);
+
+    // shoulder orange highlight
+    ctx.fillStyle = orange;
+    ctx.fillRect(x + 30, y + 26, 6, 8);
+
+    // arms (skin)
+    ctx.fillStyle = skin;
+    ctx.fillRect(x + 6, y + 28, 8, 16);
+    ctx.fillRect(x + 32, y + 30, 8, 14);
+
+    // gloves
+    ctx.fillStyle = "#1a1a1a";
+    ctx.fillRect(x + 5, y + 40, 10, 6);
+    ctx.fillRect(x + 31, y + 40, 10, 6);
+
+    // helmet (purple)
+    ctx.fillStyle = helmet;
+    ctx.fillRect(x + 10, y + 6, 24, 20);
+
+    // face opening (skin)
+    ctx.fillStyle = skin;
+    ctx.fillRect(x + 12, y + 12, 10, 10);
+
+    // facemask (orange)
+    ctx.fillStyle = orange;
+    ctx.fillRect(x + 12, y + 16, 14, 3);
+    ctx.fillRect(x + 12, y + 12, 3, 10);
+
+    // visor highlight
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.25;
+    ctx.fillRect(x + 12, y + 8, 10, 3);
+    ctx.globalAlpha = 1;
+
+    // Slide pose hint
+    if (player.sliding) {
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(x + 2, y + h - 20, 50, 4);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawObstacle(o) {
+    // Football-themed stylized obstacles
+    if (o.type === "cone") {
+      ctx.fillStyle = "#ff7a00";
+      ctx.fillRect(o.x, o.y, o.w, o.h);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(o.x + 4, o.y + 10, o.w - 8, 6);
+    }
+    else if (o.type === "dummy") {
+      // tackling dummy
+      ctx.fillStyle = "#c4452c";
+      ctx.fillRect(o.x, o.y, o.w, o.h);
+      ctx.fillStyle = "#3a1475";
+      ctx.fillRect(o.x + 6, o.y + 10, o.w - 12, 10);
+      ctx.fillStyle = "#0a0a0a";
+      ctx.fillRect(o.x + 4, o.y + o.h - 10, o.w - 8, 10);
+    }
+    else if (o.type === "hurdle") {
+      // overhead bar
+      ctx.fillStyle = "#b8c5db";
+      ctx.fillRect(o.x, o.y, o.w, o.h);
+      ctx.fillStyle = "#0a0a0a";
+      ctx.fillRect(o.x + 6, o.y + o.h - 6, o.w - 12, 6);
+    }
+    else if (o.type === "football") {
+      // rolling football
+      ctx.save();
+      ctx.translate(o.x + o.w/2, o.y + o.h/2);
+      ctx.rotate(o.rot);
+      ctx.fillStyle = "#8b4c22";
+      ctx.fillRect(-o.w/2, -o.h/2, o.w, o.h);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(-2, -o.h/2, 4, o.h);
+      ctx.restore();
+    }
+  }
+
+  function obstacleHitbox(o) {
+    // forgiving hitboxes
+    if (o.type === "hurdle") {
+      // Only collide with a lower portion to make slide feel fair
+      return { x: o.x + 4, y: o.y + 8, w: o.w - 8, h: o.h - 8 };
+    }
+    return { x: o.x + 4, y: o.y + 4, w: o.w - 8, h: o.h - 8 };
+  }
+
+  // ---------- Update ----------
+  function update(dt) {
+    if (!running) return;
+    if (paused) return;
+
+    // difficulty
+    speed += speedGain * dt;
+    spawnEvery = clamp(spawnBase - (speed - baseSpeed) / 1400, spawnMin, spawnBase);
+
+    // score increases with speed
+    score += Math.floor((speed * dt) / 12);
+    if (score < 0) score = 0;
+
+    // player physics
+    player.vy += gravity * dt;
+    player.y += player.vy * dt;
+
+    // ground collision
+    const standingH = 72;
+    if (!player.sliding) player.h = standingH;
+
+    if (player.y + player.h >= groundY) {
+      player.y = groundY - player.h;
+      player.vy = 0;
+      player.onGround = true;
+    } else {
+      player.onGround = false;
+    }
+
+    // slide timer
+    if (player.sliding) {
+      player.slideT -= dt;
+      if (player.slideT <= 0) {
+        player.sliding = false;
+        player.h = standingH;
+        player.y = groundY - player.h;
+      }
+    }
+
+    // spawn
+    spawnTimer += dt;
+    if (spawnTimer >= spawnEvery) {
+      spawnTimer = 0;
+      spawnObstacle();
+    }
+
+    // move obstacles
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      const o = obstacles[i];
+      o.x -= speed * dt;
+      if (o.type === "football") o.rot += (speed * dt) / 40;
+
+      if (o.x + o.w < -50) obstacles.splice(i, 1);
+    }
+
+    // collision
+    const p = playerBox();
+    for (const o of obstacles) {
+      const hb = obstacleHitbox(o);
+      if (aabb(p.x, p.y, p.w, p.h, hb.x, hb.y, hb.w, hb.h)) {
+        endGame();
+        break;
+      }
+    }
+
+    // highscore update
+    if (score > high) {
+      high = score;
+      localStorage.setItem("wfl_runner_high", String(high));
+    }
+
+    syncUI();
+  }
+
+  // ---------- Render ----------
+  function render(dt) {
+    clear();
+    drawBackground(dt);
+
+    // obstacles
+    for (const o of obstacles) drawObstacle(o);
+
+    // player
+    drawPlayer(dt);
+
+    // overlay text
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.85;
+    ctx.font = "16px sans-serif";
+    if (!running) {
+      ctx.fillText("Press Start to play", 16, 24);
+    } else if (paused) {
+      ctx.fillText("Paused (press P to resume)", 16, 24);
+    } else if (gameOver) {
+      ctx.fillText("GAME OVER — press Start or Space to retry", 16, 24);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ---------- Main Loop ----------
+  function loop(now) {
+    const dt = Math.min(0.033, (now - tPrev) / 1000);
+    tPrev = now;
+
+    update(dt);
+    render(dt);
+
+    requestAnimationFrame(loop);
+  }
+
+  // init
+  highEl.textContent = high.toString();
+  syncUI();
+  requestAnimationFrame(loop);
+
+  // default to ready state
+  running = false;
+
+  // allow space to start too
+  window.addEventListener("keydown", (e) => {
+    if (!running && (e.code === "Space" || e.code === "ArrowUp")) {
+      e.preventDefault();
+      startGame();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
