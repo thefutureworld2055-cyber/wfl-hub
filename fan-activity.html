@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WFL — Fan Activity</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .btn-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap:14px; }
+    @media (max-width: 900px){ .btn-grid{ grid-template-columns: 1fr; } }
+    .bigbtn{
+      display:block;
+      text-decoration:none;
+      color:inherit;
+      background:#0b1220;
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:16px;
+      transition: transform 120ms ease, border-color 120ms ease;
+    }
+    .bigbtn:hover{ transform: translateY(-2px); border-color: var(--link); }
+    .bigbtn h3{ margin:0 0 6px 0; }
+    .bigbtn p{ margin:0; color: var(--muted); }
+    .tag{ display:inline-block; margin-top:10px; font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); color:var(--muted); }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>WFL HUB</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <div class="card">
+      <h2>Fan Activity</h2>
+      <p class="muted">Quick, no-work ways to participate between games. Pick one.</p>
+
+      <div class="btn-grid">
+        <a class="bigbtn" href="vote-overrated.html">
+          <h3>Vote: Who’s overrated?</h3>
+          <p>One-click vote. Then see what the league thinks.</p>
+          <span class="tag">30 seconds</span>
+        </a>
+
+        <a class="bigbtn" href="predict-upset.html">
+          <h3>Predict the upset</h3>
+          <p>Pick one underdog you believe in this week.</p>
+          <span class="tag">1 minute</span>
+        </a>
+
+        <a class="bigbtn" href="power-rankings-debate.html">
+          <h3>Power rankings debate</h3>
+          <p>Agree/disagree with the rankings and post your take.</p>
+          <span class="tag">2 minutes</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>How this works</h2>
+      <ul>
+        <li>We post results in <a href="news.html">News</a> each week.</li>
+        <li>Your votes shape what gets covered in the next WFL update.</li>
+        <li>No accounts needed. Just click and move on.</li>
+      </ul>
+    </div>
+  </main>
+</body>
+</html>
