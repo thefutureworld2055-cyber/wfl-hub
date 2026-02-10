@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WFL — Vote: Overrated</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    .opt{ display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px; border:1px solid var(--border); border-radius:12px; background:#0b1220; margin:10px 0; }
+    button{ padding:8px 12px; border-radius:12px; border:1px solid var(--border); background:#0f1623; color:var(--text); cursor:pointer; font-weight:900; }
+    button:hover{ border-color: var(--link); }
+    .small{ font-size:12px; color:var(--muted); }
+  </style>
 </head>
 
 <body>
@@ -22,28 +28,53 @@
   <main class="wrap">
     <div class="card">
       <h2>Vote: Who’s overrated?</h2>
-      <p class="muted">Pick the team you think is getting too much hype right now.</p>
+      <p class="muted">One click. No account. We save your pick on your device.</p>
 
-      <!-- SIMPLE VERSION (no external tools): update this list weekly -->
+      <div id="list"></div>
+
       <div class="embed-wrap">
-        <form>
-          <p><label><input type="radio" name="overrated"> Team A</label></p>
-          <p><label><input type="radio" name="overrated"> Team B</label></p>
-          <p><label><input type="radio" name="overrated"> Team C</label></p>
-          <p class="muted" style="font-size:12px;">(This simple version doesn’t save votes yet. If you want real vote tracking, use a Google Form/Typeform link below.)</p>
-        </form>
+        <p><strong>Your current pick:</strong> <span id="pick">None yet</span></p>
+        <p class="small">Tip: you can change your vote anytime.</p>
+        <button id="clear">Clear my vote</button>
       </div>
-
-      <hr style="border:0; border-top:1px solid var(--border); margin:16px 0;">
-
-      <p><strong>Real vote tracking (recommended):</strong></p>
-      <p class="muted">Create a Google Form / Typeform poll and paste the link here.</p>
-      <p>
-        <a href="PASTE_VOTE_FORM_LINK_HERE" target="_blank" rel="noopener">Vote here →</a>
-      </p>
-
-      <p class="muted" style="font-size:12px;">Tip: Post the results in <a href="news.html">News</a> as “Overrated vote: Team X (42%)”.</p>
     </div>
   </main>
+
+<script>
+  // EDIT THIS LIST
+  const TEAMS = ["Dallas","Berlin","Saint Catherine","San Francisco"];
+
+  const KEY = "wfl_overrated_pick";
+
+  const list = document.getElementById("list");
+  const pick = document.getElementById("pick");
+
+  function load(){
+    const p = localStorage.getItem(KEY);
+    pick.textContent = p || "None yet";
+  }
+
+  function render(){
+    list.innerHTML = "";
+    TEAMS.forEach(t=>{
+      const row = document.createElement("div");
+      row.className = "opt";
+      row.innerHTML = `<div><strong>${t}</strong><div class="small">Click to vote.</div></div>`;
+      const btn = document.createElement("button");
+      btn.textContent = "Vote";
+      btn.onclick = () => { localStorage.setItem(KEY, t); load(); };
+      row.appendChild(btn);
+      list.appendChild(row);
+    });
+  }
+
+  document.getElementById("clear").onclick = () => {
+    localStorage.removeItem(KEY);
+    load();
+  };
+
+  render();
+  load();
+</script>
 </body>
 </html>
