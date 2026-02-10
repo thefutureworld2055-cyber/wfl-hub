@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WFL Arcade</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .grid{ display:grid; grid-template-columns: repeat(2, 1fr); gap:14px; }
+    @media (max-width: 900px){ .grid{ grid-template-columns: 1fr; } }
+    .gamecard{ border:1px solid var(--border); border-radius:14px; background:#0b1220; padding:14px; }
+    .gamecard h3{ margin:0 0 6px 0; }
+    .muted{ color:var(--muted); }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+    a.btn{
+      display:inline-block; padding:10px 14px; border-radius:12px;
+      border:1px solid var(--border); background:#0b1220; color:var(--text);
+      text-decoration:none; font-weight:900;
+    }
+    a.btn:hover{ border-color: var(--link); }
+    .tag{ display:inline-block; font-size:12px; padding:2px 8px; border:1px solid var(--border); border-radius:999px; color:var(--muted); margin-right:6px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>WFL HUB</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="arcade.html">Arcade</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <div class="card">
+      <h2>WFL Arcade</h2>
+      <p class="muted">Quick games your fans can play anytime. Share scores. Start rivalries.</p>
+
+      <div class="grid">
+        <div class="gamecard">
+          <h3>Custer Dash</h3>
+          <div>
+            <span class="tag">Endless Runner</span>
+            <span class="tag">1-button</span>
+            <span class="tag">Powerups</span>
+          </div>
+          <p class="muted">Dodge defenders. Grab shield + boots. Beat the high score.</p>
+          <div class="row">
+            <a class="btn" href="game.html">Play →</a>
+          </div>
+        </div>
+
+        <div class="gamecard">
+          <h3>Livingston’s Passing Lab</h3>
+          <div>
+            <span class="tag">Passing</span>
+            <span class="tag">Click Targets</span>
+            <span class="tag">Accuracy</span>
+          </div>
+          <p class="muted">Lock in. Click receivers as they cross the field. Build streaks.</p>
+          <div class="row">
+            <a class="btn" href="passing-lab.html">Enter the Lab →</a>
+          </div>
+        </div>
+      </div>
+
+      <p class="muted" style="margin-top:14px;">
+        Want more? We can add: Field Goal Frenzy • QB Blitz Escape • Catch Challenge • Draft Roulette.
+      </p>
+    </div>
+  </main>
+</body>
+</html>
