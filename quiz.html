@@ -5,30 +5,240 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WFL — Team Finder Quiz</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media (max-width: 900px){ .row { grid-template-columns: 1fr; } }
+    label { display:block; font-weight: 800; margin: 10px 0 6px; }
+    input, select {
+      width:100%;
+      padding:10px;
+      border-radius:10px;
+      border:1px solid var(--border);
+      background:#0b1220;
+      color: var(--text);
+      outline:none;
+    }
+    button{
+      padding:10px 14px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:#0b1220;
+      color:var(--text);
+      cursor:pointer;
+      font-weight:900;
+    }
+    button:hover{ border-color: var(--link); }
+    .result{
+      margin-top:14px;
+      padding:14px;
+      border-radius:14px;
+      border:1px solid var(--border);
+      background:#0b1220;
+    }
+    .pill{ display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--border); color:var(--muted); font-size:12px; margin-right:6px; margin-top:6px;}
+    .small{ font-size:12px; color:var(--muted); }
+    .mutedlink a { color: var(--link); }
+  </style>
 </head>
 
 <body>
   <header>
     <h1>WFL HUB</h1>
-   <nav>
-  <a href="index.html">Home</a>
-  <a href="schedule.html">Schedule</a>
-  <a href="news.html">News</a>
-  <a href="quiz.html">Quiz</a>
-  <a href="fan-activity.html">Fan Activity</a>
-</nav>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+    </nav>
   </header>
 
   <main class="wrap">
     <div class="card">
       <h2>Which WFL Team Should You Support?</h2>
-      <p class="muted">Take the quiz and it will match you to a WFL team.</p>
-      <p>
-        <a href="PASTE_YOUR_QUIZ_LINK_HERE" target="_blank" rel="noopener">
-          Start the quiz →
-        </a>
+      <p class="muted">Answer a few quick vibe questions and we’ll match you to a team.</p>
+
+      <div class="row">
+        <div>
+          <label for="nflTeam">Your favorite NFL team</label>
+          <input id="nflTeam" placeholder="Example: Broncos, Cowboys, Chiefs..." />
+          <div class="small">Tip: spelling doesn’t need to be perfect.</div>
+
+          <label for="location">Where do you live? (state/country)</label>
+          <input id="location" placeholder="Example: Colorado / USA / Mexico / UK..." />
+
+          <label for="character">Pick a character type</label>
+          <select id="character">
+            <option value="underdog">Underdog</option>
+            <option value="villain">Villain</option>
+            <option value="hero">Hero</option>
+            <option value="chaos">Chaos Gremlin</option>
+            <option value="genius">Tactician / Genius</option>
+            <option value="loyal">Loyal Captain</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="style">Favorite play style</label>
+          <select id="style">
+            <option value="explosive">Explosive offense</option>
+            <option value="defense">Defense-first</option>
+            <option value="balanced">Balanced / smart football</option>
+            <option value="chaos">High chaos / anything can happen</option>
+            <option value="grind">Grind it out / physical</option>
+            <option value="clutch">Close games / clutch drama</option>
+          </select>
+
+          <label for="vibe">Pick a vibe</label>
+          <select id="vibe">
+            <option value="glory">Glory / big moments</option>
+            <option value="heartbreak">Heartbreak enjoyer</option>
+            <option value="rebuild">Rebuild / slow rise</option>
+            <option value="dynasty">Dynasty hunting</option>
+            <option value="memes">Memes & chaos</option>
+            <option value="respect">Old-school respect</option>
+          </select>
+
+          <label>&nbsp;</label>
+          <button id="btn">Find my team →</button>
+          <button id="btnReset" style="margin-left:8px;">Reset</button>
+
+          <div id="out" class="result" style="display:none;"></div>
+        </div>
+      </div>
+
+      <p class="small mutedlink">
+        Want this to feel more accurate? Edit the team list & tags in the code (look for <strong>CONFIG</strong>).
       </p>
     </div>
   </main>
+
+<script>
+/* =========================
+   CONFIG — EDIT THIS PART
+   =========================
+   Add your real WFL teams here. Give each team some tags that describe them.
+   The quiz matches tags to answers.
+*/
+const WFL_TEAMS = [
+  { name: "Dallas", tags: ["explosive","chaos","clutch","glory","memes"] , blurb:"High-octane and stressful. If you love fireworks and drama, this is your home." },
+  { name: "Berlin", tags: ["defense","respect","clutch","balanced"] , blurb:"Tough, disciplined, and always alive late. You like structure and survival." },
+  { name: "Saint Catherine", tags: ["heartbreak","rebuild","underdog","clutch"] , blurb:"The suffering builds character. If you love hope, pain, and loyalty—welcome." },
+  { name: "San Francisco", tags: ["balanced","dynasty","glory"] , blurb:"Win-now energy. You want a team that expects to matter every week." }
+];
+
+// Optional: small NFL “vibe” hints (you can add more)
+const NFL_HINTS = [
+  { match: ["cowboys","dallas"], tagBoost: { "Dallas": 2 } },
+  { match: ["broncos","denver"], tagBoost: { "Berlin": 1, "Saint Catherine": 1 } },
+  { match: ["chiefs","kansas"], tagBoost: { "San Francisco": 2 } }
+];
+
+// Optional: location hints (very light)
+const LOCATION_HINTS = [
+  { match: ["texas","tx"], tagBoost: { "Dallas": 1 } },
+  { match: ["germany","berlin"], tagBoost: { "Berlin": 1 } },
+];
+
+/* =========================
+   QUIZ LOGIC
+   ========================= */
+
+function norm(s){ return (s||"").toLowerCase().trim(); }
+
+function scoreTeams(answers){
+  const scores = Object.fromEntries(WFL_TEAMS.map(t => [t.name, 0]));
+  const reasons = Object.fromEntries(WFL_TEAMS.map(t => [t.name, []]));
+
+  function add(team, pts, why){
+    scores[team] = (scores[team]||0) + pts;
+    if (why) reasons[team].push(why);
+  }
+
+  // Tag matching
+  for (const t of WFL_TEAMS){
+    for (const a of [answers.style, answers.vibe]){
+      if (t.tags.includes(a)){
+        add(t.name, 3, `Matches your ${a} vibe`);
+      }
+    }
+    // character influences
+    if (answers.character === "underdog" && t.tags.includes("underdog")) add(t.name, 2, "Underdog energy");
+    if (answers.character === "villain" && t.tags.includes("villain")) add(t.name, 2, "Villain energy");
+    if (answers.character === "chaos" && t.tags.includes("chaos")) add(t.name, 2, "Chaos lover");
+    if (answers.character === "genius" && t.tags.includes("balanced")) add(t.name, 1, "Tactician / smart style");
+    if (answers.character === "loyal" && (t.tags.includes("respect") || t.tags.includes("heartbreak"))) add(t.name, 1, "Loyalty fits this team");
+  }
+
+  // NFL hints
+  const nfl = norm(answers.nflTeam);
+  for (const h of NFL_HINTS){
+    if (h.match.some(m => nfl.includes(m))){
+      for (const [team, pts] of Object.entries(h.tagBoost)){
+        add(team, pts, "NFL-team vibe match");
+      }
+    }
+  }
+
+  // Location hints
+  const loc = norm(answers.location);
+  for (const h of LOCATION_HINTS){
+    if (h.match.some(m => loc.includes(m))){
+      for (const [team, pts] of Object.entries(h.tagBoost)){
+        add(team, pts, "Location vibe nudge");
+      }
+    }
+  }
+
+  // Pick winner
+  const ranked = Object.entries(scores).sort((a,b)=> b[1]-a[1]);
+  return { ranked, reasons };
+}
+
+function renderResult(winner, winnerReasons){
+  const team = WFL_TEAMS.find(t=>t.name===winner);
+  const pills = (team?.tags||[]).slice(0,6).map(tag => `<span class="pill">${tag}</span>`).join("");
+  const why = (winnerReasons[winner] || []).slice(0,5).map(r => `<li>${r}</li>`).join("");
+
+  return `
+    <h3 style="margin:0 0 6px 0;">Your team: <span style="color:var(--link)">${winner}</span></h3>
+    <p class="muted" style="margin:0 0 10px 0;">${team?.blurb || ""}</p>
+    <div>${pills}</div>
+    <h4 style="margin:12px 0 6px 0;">Why this match?</h4>
+    <ul style="margin:0; padding-left:18px;">${why || "<li>Pure vibes. And it felt right.</li>"}</ul>
+    <p class="small" style="margin-top:10px;">
+      Tip: If you want more accurate matches, add your real WFL teams + tags in the code.
+    </p>
+  `;
+}
+
+document.getElementById("btn").addEventListener("click", () => {
+  const answers = {
+    nflTeam: document.getElementById("nflTeam").value,
+    location: document.getElementById("location").value,
+    character: document.getElementById("character").value,
+    style: document.getElementById("style").value,
+    vibe: document.getElementById("vibe").value
+  };
+
+  const { ranked, reasons } = scoreTeams(answers);
+  const winner = ranked[0]?.[0] || WFL_TEAMS[0].name;
+
+  const out = document.getElementById("out");
+  out.style.display = "block";
+  out.innerHTML = renderResult(winner, reasons);
+});
+
+document.getElementById("btnReset").addEventListener("click", () => {
+  document.getElementById("nflTeam").value = "";
+  document.getElementById("location").value = "";
+  document.getElementById("character").value = "underdog";
+  document.getElementById("style").value = "explosive";
+  document.getElementById("vibe").value = "glory";
+  const out = document.getElementById("out");
+  out.style.display = "none";
+  out.innerHTML = "";
+});
+</script>
 </body>
 </html>
