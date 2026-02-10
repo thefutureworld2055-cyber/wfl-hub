@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WFL — Power Rankings Debate</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    .row{ display:flex; gap:10px; flex-wrap:wrap; }
+    button{ padding:8px 12px; border-radius:12px; border:1px solid var(--border); background:#0f1623; color:var(--text); cursor:pointer; font-weight:900; }
+    button:hover{ border-color: var(--link); }
+    select{ width:100%; padding:10px; border-radius:10px; border:1px solid var(--border); background:#0b1220; color:var(--text); }
+    .small{ font-size:12px; color:var(--muted); }
+  </style>
 </head>
 
 <body>
@@ -22,34 +29,90 @@
   <main class="wrap">
     <div class="card">
       <h2>Power rankings debate</h2>
-      <p class="muted">Do you agree with the rankings? Drop your take.</p>
+      <p class="muted">React fast. No essays required. Saved on your device.</p>
 
       <div class="embed-wrap">
         <h3 style="margin-top:0;">Current Top 10 (edit weekly)</h3>
-        <ol>
-          <li>Team #1 — one sentence why</li>
-          <li>Team #2 — one sentence why</li>
-          <li>Team #3 — one sentence why</li>
-          <li>Team #4</li>
-          <li>Team #5</li>
-          <li>Team #6</li>
-          <li>Team #7</li>
-          <li>Team #8</li>
-          <li>Team #9</li>
-          <li>Team #10</li>
-        </ol>
+        <ol id="top10"></ol>
+        <p class="small">To update: edit the TOP10 list in the code.</p>
       </div>
 
-      <hr style="border:0; border-top:1px solid var(--border); margin:16px 0;">
+      <div class="card" style="margin-top:14px;">
+        <h3 style="margin-top:0;">Your reaction</h3>
 
-      <p><strong>Let fans respond (recommended):</strong></p>
-      <p class="muted">Use a short form asking: “Top 3 teams?” and “Most overrated?”</p>
-      <p>
-        <a href="PASTE_RANKINGS_DEBATE_FORM_LINK_HERE" target="_blank" rel="noopener">Post your take →</a>
-      </p>
+        <div class="row">
+          <button id="agree">Agree</button>
+          <button id="mixed">Mixed</button>
+          <button id="disagree">Disagree</button>
+          <button id="clear">Clear</button>
+        </div>
 
-      <p class="muted" style="font-size:12px;">Optional: link your Discord thread here too.</p>
+        <label style="display:block; font-weight:900; margin:14px 0 6px;">Who’s ranked too high?</label>
+        <select id="tooHigh"></select>
+
+        <p style="margin-top:12px;"><strong>Your saved take:</strong></p>
+        <p class="small" id="saved">None yet</p>
+      </div>
     </div>
   </main>
+
+<script>
+  // EDIT THIS WEEKLY
+  const TOP10 = [
+    "Team #1","Team #2","Team #3","Team #4","Team #5",
+    "Team #6","Team #7","Team #8","Team #9","Team #10"
+  ];
+
+  const KEY = "wfl_rankings_take";
+  const top10El = document.getElementById("top10");
+  const select = document.getElementById("tooHigh");
+  const saved = document.getElementById("saved");
+
+  function renderTop10(){
+    top10El.innerHTML = "";
+    TOP10.forEach(t=>{
+      const li = document.createElement("li");
+      li.textContent = t;
+      top10El.appendChild(li);
+    });
+
+    select.innerHTML = "";
+    TOP10.forEach(t=>{
+      const opt = document.createElement("option");
+      opt.value = t;
+      opt.textContent = t;
+      select.appendChild(opt);
+    });
+  }
+
+  function load(){
+    const data = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (!data) {
+      saved.textContent = "None yet";
+      return;
+    }
+    saved.textContent = `${data.reaction} | Too high: ${data.tooHigh}`;
+    select.value = data.tooHigh || TOP10[0];
+  }
+
+  function save(reaction){
+    const data = { reaction, tooHigh: select.value };
+    localStorage.setItem(KEY, JSON.stringify(data));
+    load();
+  }
+
+  document.getElementById("agree").onclick = () => save("Agree");
+  document.getElementById("mixed").onclick = () => save("Mixed");
+  document.getElementById("disagree").onclick = () => save("Disagree");
+  document.getElementById("clear").onclick = () => { localStorage.removeItem(KEY); load(); };
+
+  select.onchange = () => {
+    const data = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (data) save(data.reaction || "Mixed");
+  };
+
+  renderTop10();
+  load();
+</script>
 </body>
 </html>
