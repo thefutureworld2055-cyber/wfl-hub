@@ -42,7 +42,8 @@
         <span><strong>Misses:</strong> <span id="misses">0</span></span>
         <span><strong>Streak:</strong> <span id="streak">0</span></span>
         <span><strong>Accuracy:</strong> <span id="acc">0%</span></span>
-        <span><strong>Time:</strong> <span id="time">60</span>s</span>
+        <span><strong>Time:</strong> <span id="time">30</span>s</span>
+        <span><strong>Cooldown:</strong> <span id="cd">Ready</span></span>
         <span><strong>High:</strong> <span id="high">0</span></span>
       </div>
 
@@ -53,11 +54,11 @@
       </div>
 
       <p class="hint">
-        Click moving receivers as they cross the field. Headshots are worth more. Misses break streaks.
-        (Mouse = aim, Click = throw)
+        Click receivers to complete passes. Headshots = bonus points. Clock targets add <strong>+10s</strong>.
+        Cooldown prevents spam (aim for clean throws).
       </p>
 
-      <canvas id="c" width="980" height="460"></canvas>
+      <canvas id="c" width="980" height="500"></canvas>
       <p class="hint">QB Livingston (#8) is static bottom-left. Receivers wear matching uniform.</p>
     </div>
   </main>
@@ -75,6 +76,7 @@
   const streakEl = document.getElementById("streak");
   const accEl = document.getElementById("acc");
   const timeEl = document.getElementById("time");
+  const cdEl = document.getElementById("cd");
   const highEl = document.getElementById("high");
 
   const btnStart = document.getElementById("btnStart");
@@ -85,6 +87,26 @@
   const rand = (a,b)=>a+Math.random()*(b-a);
   const choice = (arr)=>arr[(Math.random()*arr.length)|0];
 
+  // Palette for Livingston kit
+  const KIT = {
+    helm: "#0b2a56",   // dark blue helmet
+    jersey: "#b21f2d", // red jersey
+    pants: "#e8eef7",  // white pants
+    accent: "#0b2a56", // dark blue highlights
+    skin: "#4b2a1a"
+  };
+
+  // Game constants
+  const START_TIME = 30;        // requested
+  const TIME_BONUS = 10;        // clock target bonus
+  const TIME_CAP = 60;          // allow clocks to push time up to 60 (feels good)
+  const MAX_TARGETS = 4;        // “less targets”
+  const SPAWN_BASE = 1.35;      // slower spawn
+  const SPAWN_MIN  = 0.85;
+
+  // Throw cooldown (requested)
+  const COOLDOWN = 0.38;        // seconds between throws
+
   // Game state
   let state = "menu"; // menu | play | pause | over
   let tPrev = performance.now();
@@ -94,23 +116,27 @@
   let misses = 0;
   let streak = 0;
 
-  let timeLeft = 60;
+  let timeLeft = START_TIME;
   let spawnT = 0;
-  let spawnEvery = 0.85;
+  let spawnEvery = SPAWN_BASE;
+
+  let cdT = 0; // cooldown remaining
 
   let high = Number(localStorage.getItem("passing_lab_high") || 0);
 
   // Aim
   let aimX = W/2, aimY = H/2;
 
-  // Targets (receivers)
+  // Targets
+  // type: "receiver" | "clock"
   const targets = [];
 
   function reset() {
     score = 0; hits = 0; misses = 0; streak = 0;
-    timeLeft = 60;
+    timeLeft = START_TIME;
     spawnT = 0;
-    spawnEvery = 0.85;
+    spawnEvery = SPAWN_BASE;
+    cdT = 0;
     targets.length = 0;
     syncUI();
   }
@@ -147,236 +173,377 @@
     const attempts = hits + misses;
     const acc = attempts ? Math.round((hits/attempts)*100) : 0;
     accEl.textContent = acc + "%";
+
+    if (cdT <= 0) cdEl.textContent = "Ready";
+    else cdEl.textContent = (cdT).toFixed(2) + "s";
   }
 
-  // Spawn receiver targets moving left->right across mid field lanes
-  function spawnTarget() {
-    const laneY = choice([170, 210, 250, 290]); // mid field lanes
-    const size = rand(34, 44);
-    const speed = rand(180, 280) + (60 - timeLeft) * 1.2; // slightly faster over time
-    const headBonus = true;
-
-    // start off-screen left OR right to feel like “routes”
+  // Spawn receiver routes or clock targets
+  function spawnReceiver() {
+    const laneY = choice([185, 225, 265, 305]); // route lanes
+    const speed = rand(170, 245) + (START_TIME - timeLeft) * 2.2;
     const dir = Math.random() < 0.5 ? 1 : -1;
-    const x = dir === 1 ? -60 : W + 60;
+    const x = dir === 1 ? -90 : W + 90;
 
     targets.push({
+      type: "receiver",
       x, y: laneY,
-      w: size, h: size + 18,
+      w: 52, h: 86, // bigger = more human readable
       dir,
       spd: speed,
       bob: rand(0, Math.PI*2),
-      alive: true,
-      headBonus
+      alive: true
     });
   }
 
-  // Drawing — Football field + stadium
-  function drawField(dt) {
-    // sky/stands
-    ctx.fillStyle = "#061022";
-    ctx.fillRect(0, 0, W, H);
+  function spawnClock() {
+    // Put clocks slightly higher so they’re a “skill” target
+    const y = choice([165, 205, 245]);
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    const x = dir === 1 ? -90 : W + 90;
+    const spd = rand(160, 220);
 
-    // upper stands
-    ctx.fillStyle = "#0b1b3a";
-    ctx.fillRect(0, 0, W, 120);
+    targets.push({
+      type: "clock",
+      x, y,
+      w: 44, h: 44,
+      dir,
+      spd,
+      bob: rand(0, Math.PI*2)
+    });
+  }
 
-    // crowd dots
-    ctx.globalAlpha = 0.7;
-    for (let x=0; x<W; x+=14) {
-      for (let y=18; y<110; y+=18) {
-        ctx.fillStyle = (x+y)%56===0 ? "#f08a1a" : ((x+y)%28===0 ? "#203b77" : "#142a55");
-        ctx.fillRect(x+2, y+2, 8, 8);
-      }
-    }
-    ctx.globalAlpha = 1;
+  // Background (stadium + field + scoreboard)
+  function drawStadium(dt) {
+    // Sky
+    ctx.fillStyle = "#050b18";
+    ctx.fillRect(0,0,W,H);
 
-    // lights
+    // Upper deck / roof
+    ctx.fillStyle = "#07142e";
+    ctx.fillRect(0,0,W,95);
+
+    // Stadium lights
     ctx.fillStyle = "#1a2b55";
-    for (let x=60; x<W; x+=240) {
-      ctx.fillRect(x, 0, 14, 90);
+    for (let x=70; x<W; x+=220) {
+      ctx.fillRect(x, 0, 14, 105);
       ctx.globalAlpha = 0.22;
       ctx.fillStyle = "#ffffff";
-      ctx.fillRect(x-40, 4, 94, 10);
+      ctx.fillRect(x-44, 8, 102, 12);
       ctx.globalAlpha = 1;
       ctx.fillStyle = "#1a2b55";
     }
 
-    // field
-    ctx.fillStyle = "#031a34";
-    ctx.fillRect(0, 120, W, H-120);
+    // Crowd bowl
+    ctx.fillStyle = "#0a1f45";
+    ctx.fillRect(0,95,W,140);
 
-    // turf stripes
-    ctx.globalAlpha = 0.35;
-    for (let i=0; i<14; i++){
-      ctx.fillStyle = i%2===0 ? "#052a56" : "#042447";
-      ctx.fillRect(i*(W/14), 120, (W/14), H-120);
+    // Crowd pixels (denser + varied)
+    ctx.globalAlpha = 0.8;
+    for (let y=105; y<220; y+=16) {
+      for (let x=10; x<W; x+=14) {
+        const r = (x*37 + y*19) % 120;
+        ctx.fillStyle =
+          r < 6  ? "#f08a1a" :
+          r < 18 ? "#d7e6ff" :
+          r < 42 ? "#1b3b7a" :
+          r < 75 ? "#152f5a" :
+                  "#10264a";
+        ctx.fillRect(x, y, 9, 9);
+      }
     }
     ctx.globalAlpha = 1;
 
-    // yard lines
+    // Mid banners
+    ctx.fillStyle = "#0b1220";
+    ctx.fillRect(0,235,W,26);
+    ctx.globalAlpha = 0.75;
+    ctx.fillStyle = "#b21f2d";
+    for (let x=0; x<W; x+=170) ctx.fillRect(x+14, 242, 140, 12);
+    ctx.globalAlpha = 1;
+
+    // Scoreboard box
+    ctx.fillStyle = "#0b1220";
+    ctx.fillRect(W-330, 18, 300, 60);
+    ctx.strokeStyle = "#1f2c46";
+    ctx.strokeRect(W-330, 18, 300, 60);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.9;
+    ctx.font = "16px sans-serif";
+    ctx.fillText("LIVINGSTON'S PASSING LAB", W-315, 42);
+    ctx.globalAlpha = 0.75;
+    ctx.fillText("WFL ARCADE", W-315, 64);
+    ctx.globalAlpha = 1;
+
+    // Field
+    ctx.fillStyle = "#031a34";
+    ctx.fillRect(0,261,W,H-261);
+
+    // Turf stripes
+    ctx.globalAlpha = 0.35;
+    for (let i=0;i<14;i++){
+      ctx.fillStyle = i%2===0 ? "#052a56" : "#042447";
+      ctx.fillRect(i*(W/14), 261, (W/14), H-261);
+    }
+    ctx.globalAlpha = 1;
+
+    // Yard lines
     ctx.fillStyle = "#d7e6ff";
     ctx.globalAlpha = 0.75;
     for (let x=40; x<W; x+=90){
-      ctx.fillRect(x, 140, 4, H-180);
+      ctx.fillRect(x, 280, 4, H-330);
       ctx.globalAlpha = 0.35;
       ctx.fillRect(x+10, H-42, 14, 8);
       ctx.globalAlpha = 0.75;
     }
     ctx.globalAlpha = 1;
 
-    // endzone band at bottom
+    // Endzone band
     ctx.globalAlpha = 0.35;
-    ctx.fillStyle = "#2a0f56";
-    ctx.fillRect(0, H-90, W, 90);
-    ctx.globalAlpha = 0.75;
-    ctx.fillStyle = "#f08a1a";
-    ctx.fillRect(0, H-86, W, 6);
+    ctx.fillStyle = "#0b2a56";
+    ctx.fillRect(0, H-92, W, 92);
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, H-92, W, 6);
     ctx.globalAlpha = 1;
 
-    // mini scoreboard
+    // Cooldown meter (visual)
+    const meterX = 18, meterY = 18, meterW = 180, meterH = 14;
     ctx.fillStyle = "#0b1220";
-    ctx.fillRect(W-260, 128, 240, 44);
+    ctx.fillRect(meterX, meterY, meterW, meterH);
     ctx.strokeStyle = "#1f2c46";
-    ctx.strokeRect(W-260, 128, 240, 44);
-    ctx.fillStyle = "#ffffff";
+    ctx.strokeRect(meterX, meterY, meterW, meterH);
+    const pct = cdT <= 0 ? 1 : clamp(1 - (cdT / COOLDOWN), 0, 1);
     ctx.globalAlpha = 0.85;
-    ctx.font = "14px sans-serif";
-    ctx.fillText("LIVINGSTON'S PASSING LAB", W-246, 156);
+    ctx.fillStyle = pct >= 1 ? "#9ad1ff" : "#f08a1a";
+    ctx.fillRect(meterX+2, meterY+2, (meterW-4)*pct, meterH-4);
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.8;
+    ctx.font = "12px sans-serif";
+    ctx.fillText("THROW", meterX + 6, meterY + 12);
     ctx.globalAlpha = 1;
   }
 
-  // Draw QB Livingston (static bottom-left)
+  // “More human” QB sprite: bigger, clearer, holding-ball pose
   function drawQB() {
-    const x = 90, y = H-140;
-
-    // palette requested:
-    const helm = "#0b2a56";   // dark blue helmet
-    const red = "#b21f2d";    // red jersey
-    const pants = "#e8eef7";  // white pants
-    const blue = "#0b2a56";   // dark blue highlights
+    const x = 70, y = H-210; // anchor
+    const helm = KIT.helm, red = KIT.jersey, pants = KIT.pants, blue = KIT.accent, skin = KIT.skin;
 
     // shadow
-    ctx.globalAlpha = 0.25;
+    ctx.globalAlpha = 0.22;
     ctx.fillStyle = "#0b0f1b";
-    ctx.fillRect(x-10, H-48, 120, 14);
+    ctx.fillRect(x+18, H-58, 160, 16);
+    ctx.globalAlpha = 1;
+
+    // legs (pants)
+    ctx.fillStyle = pants;
+    ctx.fillRect(x+40, y+120, 26, 58);
+    ctx.fillRect(x+78, y+120, 26, 58);
+
+    // stripe
+    ctx.fillStyle = blue;
+    ctx.fillRect(x+70, y+120, 6, 58);
+
+    // shoes
+    ctx.fillStyle = "#0a0a0a";
+    ctx.fillRect(x+38, y+168, 32, 14);
+    ctx.fillRect(x+76, y+168, 32, 14);
+
+    // torso (jersey)
+    ctx.fillStyle = red;
+    ctx.fillRect(x+34, y+58, 96, 72);
+
+    // shoulder pads highlight
+    ctx.fillStyle = blue;
+    ctx.fillRect(x+34, y+58, 16, 14);
+    ctx.fillRect(x+114, y+58, 16, 14);
+
+    // neck
+    ctx.fillStyle = skin;
+    ctx.fillRect(x+82, y+52, 12, 10);
+
+    // helmet
+    ctx.fillStyle = helm;
+    ctx.fillRect(x+92, y+18, 56, 40);
+
+    // face opening + eye dot
+    ctx.fillStyle = skin;
+    ctx.fillRect(x+122, y+32, 20, 16);
+    ctx.fillStyle = "#000000";
+    ctx.globalAlpha = 0.55;
+    ctx.fillRect(x+134, y+38, 3, 3);
+    ctx.globalAlpha = 1;
+
+    // facemask
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = "#d7e6ff";
+    ctx.fillRect(x+116, y+44, 28, 4);
+    ctx.fillRect(x+142, y+30, 4, 24);
+    ctx.globalAlpha = 1;
+
+    // arms (throw-ready)
+    ctx.fillStyle = skin;
+    // back arm
+    ctx.fillRect(x+40, y+78, 22, 18);
+    // throwing arm
+    ctx.fillRect(x+116, y+72, 40, 16);
+
+    // gloves
+    ctx.fillStyle = "#e8eef7";
+    ctx.fillRect(x+116+34, y+72, 10, 16);
+
+    // ball near hand
+    ctx.fillStyle = "#8b4c22";
+    ctx.fillRect(x+152, y+72, 18, 14);
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.65;
+    ctx.fillRect(x+160, y+72, 3, 14);
+    ctx.globalAlpha = 1;
+
+    // back nameplate + number (stylized)
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x+52, y+72, 60, 14);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = red;
+    ctx.font = "9px sans-serif";
+    ctx.fillText("LIVINGSTON", x+55, y+82);
+
+    // number 8 on jersey (bigger)
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x+76, y+92, 20, 28);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = red;
+    ctx.fillRect(x+80, y+96, 12, 5);
+    ctx.fillRect(x+80, y+104, 12, 5);
+    ctx.fillRect(x+80, y+112, 12, 5);
+  }
+
+  // Receiver sprite: more human, clearer helmet/face, better silhouette
+  function drawReceiver(t, dt) {
+    t.bob += dt*5.2;
+    const bob = Math.sin(t.bob)*2;
+
+    const x = t.x;
+    const y = t.y + bob;
+
+    const helm = KIT.helm, red = KIT.jersey, pants = KIT.pants, blue = KIT.accent, skin = KIT.skin;
+
+    // shadow
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = "#0b0f1b";
+    ctx.fillRect(x+10, y + t.h + 6, t.w - 20, 10);
     ctx.globalAlpha = 1;
 
     // legs
     ctx.fillStyle = pants;
-    ctx.fillRect(x+14, y+62, 18, 40);
-    ctx.fillRect(x+40, y+62, 18, 40);
-
-    // blue stripe
+    ctx.fillRect(x+18, y+46, 14, 34);
+    ctx.fillRect(x+36, y+46, 14, 34);
     ctx.fillStyle = blue;
-    ctx.fillRect(x+34, y+62, 4, 40);
+    ctx.fillRect(x+33, y+46, 4, 34);
 
     // shoes
     ctx.fillStyle = "#0a0a0a";
-    ctx.fillRect(x+12, y+96, 22, 10);
-    ctx.fillRect(x+38, y+96, 22, 10);
+    ctx.fillRect(x+16, y+76, 18, 10);
+    ctx.fillRect(x+34, y+76, 18, 10);
 
-    // torso jersey
+    // torso
     ctx.fillStyle = red;
-    ctx.fillRect(x+10, y+28, 60, 44);
-
-    // shoulder highlights
+    ctx.fillRect(x+14, y+20, 40, 32);
     ctx.fillStyle = blue;
-    ctx.fillRect(x+10, y+28, 10, 10);
-    ctx.fillRect(x+60, y+28, 10, 10);
+    ctx.fillRect(x+14, y+20, 7, 8);
+    ctx.fillRect(x+47, y+20, 7, 8);
 
-    // helmet
+    // arms
+    ctx.fillStyle = skin;
+    ctx.fillRect(x+8,  y+26, 8, 18);
+    ctx.fillRect(x+52, y+26, 8, 18);
+
+    // helmet + face
     ctx.fillStyle = helm;
-    ctx.fillRect(x+44, y+6, 34, 26);
+    ctx.fillRect(x+36, y+2, 26, 20);
+    ctx.fillStyle = skin;
+    ctx.fillRect(x+48, y+10, 10, 8);
 
     // facemask
     ctx.globalAlpha = 0.65;
     ctx.fillStyle = "#d7e6ff";
-    ctx.fillRect(x+52, y+18, 20, 3);
+    ctx.fillRect(x+44, y+14, 14, 3);
     ctx.globalAlpha = 1;
-
-    // arms holding ball pose
-    ctx.fillStyle = "#4b2a1a"; // skin
-    ctx.fillRect(x+56, y+40, 26, 12); // forearm
-    ctx.fillRect(x+30, y+46, 26, 10); // near arm
-
-    // ball
-    ctx.fillStyle = "#8b4c22";
-    ctx.fillRect(x+62, y+40, 18, 14);
-    ctx.fillStyle = "#ffffff";
-    ctx.globalAlpha = 0.7;
-    ctx.fillRect(x+70, y+40, 3, 14);
-    ctx.globalAlpha = 1;
-
-    // back name + number "LIVINGSTON" and "8" (stylized on jersey back panel)
-    ctx.fillStyle = "#ffffff";
-    ctx.globalAlpha = 0.8;
-    ctx.fillRect(x+24, y+38, 32, 10); // name plate
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = red;
-    ctx.font = "8px sans-serif";
-    ctx.fillText("LIVINGSTON", x+25, y+46);
-
-    // number 8 block on back
-    ctx.fillStyle = "#ffffff";
-    ctx.globalAlpha = 0.85;
-    ctx.fillRect(x+34, y+50, 14, 18);
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = red;
-    ctx.fillRect(x+36, y+52, 10, 4);
-    ctx.fillRect(x+36, y+59, 10, 4);
-    ctx.fillRect(x+36, y+66, 10, 4);
-  }
-
-  // Receiver targets (uniform copied, no name/number)
-  function drawReceiver(t, dt) {
-    t.bob += dt*6;
-    const bob = Math.sin(t.bob)*2;
-
-    const x = t.x, y = t.y + bob;
-
-    const helm = "#0b2a56";
-    const red  = "#b21f2d";
-    const pants= "#e8eef7";
-    const blue = "#0b2a56";
-
-    // body
-    ctx.globalAlpha = 0.95;
-    // legs
-    ctx.fillStyle = pants;
-    ctx.fillRect(x+10, y+36, 12, 26);
-    ctx.fillRect(x+26, y+36, 12, 26);
-    ctx.fillStyle = blue;
-    ctx.fillRect(x+23, y+36, 3, 26);
-
-    // torso
-    ctx.fillStyle = red;
-    ctx.fillRect(x+8, y+12, 34, 26);
-    ctx.fillStyle = blue;
-    ctx.fillRect(x+8, y+12, 6, 6);
-    ctx.fillRect(x+36, y+12, 6, 6);
-
-    // helmet
-    ctx.fillStyle = helm;
-    ctx.fillRect(x+26, y, 22, 16);
-    ctx.globalAlpha = 0.65;
-    ctx.fillStyle = "#d7e6ff";
-    ctx.fillRect(x+30, y+8, 12, 3);
-    ctx.globalAlpha = 0.95;
 
     // target ring
-    ctx.globalAlpha = 0.22;
+    ctx.globalAlpha = 0.18;
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(x+24, y+26, 26, 0, Math.PI*2);
+    ctx.arc(x+32, y+38, 32, 0, Math.PI*2);
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    // headshot zone indicator
-    ctx.globalAlpha = 0.25;
+    // headshot zone (small orange square)
+    ctx.globalAlpha = 0.22;
     ctx.fillStyle = "#f08a1a";
-    ctx.fillRect(x+32, y+2, 10, 10);
+    ctx.fillRect(x+50, y+4, 10, 10);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawClock(t, dt) {
+    t.bob += dt*4.6;
+    const bob = Math.sin(t.bob)*2;
+
+    const x = t.x;
+    const y = t.y + bob;
+
+    // glow
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = "#9ad1ff";
+    ctx.fillRect(x-6, y-6, t.w+12, t.h+12);
+    ctx.globalAlpha = 1;
+
+    // body
+    ctx.fillStyle = "#0b1220";
+    ctx.fillRect(x, y, t.w, t.h);
+    ctx.strokeStyle = "#1f2c46";
+    ctx.strokeRect(x, y, t.w, t.h);
+
+    // clock face
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = "#d7e6ff";
+    ctx.fillRect(x+8, y+8, t.w-16, t.h-16);
+    ctx.globalAlpha = 1;
+
+    // hands
+    ctx.strokeStyle = "#0b1220";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x + t.w/2, y + t.h/2);
+    ctx.lineTo(x + t.w/2, y + 14);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + t.w/2, y + t.h/2);
+    ctx.lineTo(x + t.w - 14, y + t.h/2);
+    ctx.stroke();
+
+    // +10 label
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = "#f08a1a";
+    ctx.fillRect(x, y + t.h - 12, t.w, 12);
+    ctx.fillStyle = "#0b1220";
+    ctx.font = "10px sans-serif";
+    ctx.fillText("+10", x + 12, y + t.h - 3);
+    ctx.globalAlpha = 1;
+
+    // ring
+    ctx.globalAlpha = 0.22;
+    ctx.strokeStyle = "#9ad1ff";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(x + t.w/2, y + t.h/2, 30, 0, Math.PI*2);
+    ctx.stroke();
     ctx.globalAlpha = 1;
   }
 
@@ -402,13 +569,14 @@
       ctx.globalAlpha = 1;
 
       ctx.fillStyle = "#ffffff";
-      ctx.font = "48px sans-serif";
-      ctx.fillText("Livingston’s Passing Lab", 60, 90);
+      ctx.font = "52px sans-serif";
+      ctx.fillText("Livingston’s Passing Lab", 60, 100);
 
-      ctx.globalAlpha = 0.8;
+      ctx.globalAlpha = 0.82;
       ctx.font = "18px sans-serif";
-      ctx.fillText("Click moving receivers to complete passes. Build streaks. 60 seconds.", 60, 124);
-      ctx.fillText("Click / Space to start.", 60, 152);
+      ctx.fillText("30 seconds. Fewer targets. Clean throws.", 60, 136);
+      ctx.fillText("Clock targets add +10s. Headshots score more.", 60, 162);
+      ctx.fillText("Click / Space to start • P to pause", 60, 196);
       ctx.globalAlpha = 1;
     }
 
@@ -418,11 +586,11 @@
       ctx.fillRect(0,0,W,H);
       ctx.globalAlpha = 1;
       ctx.fillStyle = "#ffffff";
-      ctx.font = "44px sans-serif";
-      ctx.fillText("Paused", 60, 110);
-      ctx.font = "18px sans-serif";
+      ctx.font = "48px sans-serif";
+      ctx.fillText("Paused", 60, 120);
       ctx.globalAlpha = 0.85;
-      ctx.fillText("Press P or Pause to resume.", 60, 142);
+      ctx.font = "18px sans-serif";
+      ctx.fillText("Press P or Pause to resume.", 60, 154);
       ctx.globalAlpha = 1;
     }
 
@@ -432,34 +600,59 @@
       ctx.fillRect(0,0,W,H);
       ctx.globalAlpha = 1;
       ctx.fillStyle = "#ffffff";
-      ctx.font = "44px sans-serif";
-      ctx.fillText("Time!", 60, 110);
-      ctx.font = "18px sans-serif";
+      ctx.font = "48px sans-serif";
+      ctx.fillText("Time!", 60, 120);
       ctx.globalAlpha = 0.85;
-      ctx.fillText("Press Start to run it back.", 60, 142);
-      ctx.fillText("Tip: click heads for bonus points.", 60, 168);
+      ctx.font = "18px sans-serif";
+      ctx.fillText("Press Start to run it back.", 60, 154);
+      ctx.fillText("Pro tip: clock targets can extend your run.", 60, 180);
       ctx.globalAlpha = 1;
     }
   }
 
-  // Click to throw
+  // Throw logic w/ cooldown
+  function canThrow() {
+    return cdT <= 0;
+  }
+
+  function startCooldown() {
+    cdT = COOLDOWN;
+  }
+
   function throwAt(x,y) {
     if (state === "menu") { start(); return; }
     if (state === "over") { start(); return; }
     if (state !== "play") return;
 
-    // Find topmost hit target
-    // body box
+    if (!canThrow()) {
+      // Optional: count as nothing (no miss), just ignore while cooling down
+      return;
+    }
+    startCooldown();
+
+    // find hit target (topmost)
     let hitIndex = -1;
     let headshot = false;
 
     for (let i = targets.length - 1; i >= 0; i--) {
       const t = targets[i];
-      const bx = t.x + 8, by = t.y + 8;
-      const bw = t.w - 16, bh = t.h - 10;
 
-      // head zone
-      const hx = t.x + 30, hy = t.y + 2, hw = 12, hh = 12;
+      if (t.type === "clock") {
+        const bx = t.x, by = t.y;
+        if (x >= bx && x <= bx+t.w && y >= by && y <= by+t.h) {
+          hitIndex = i;
+          headshot = false;
+          break;
+        }
+        continue;
+      }
+
+      // receiver hitbox
+      const bx = t.x + 10, by = t.y + 10;
+      const bw = t.w - 20, bh = t.h - 14;
+
+      // head zone (top-right of helmet area)
+      const hx = t.x + 50, hy = t.y + 4, hw = 12, hh = 12;
 
       if (x >= bx && x <= bx+bw && y >= by && y <= by+bh) {
         hitIndex = i;
@@ -469,13 +662,26 @@
     }
 
     if (hitIndex >= 0) {
-      const basePts = 10;
-      const streakBonus = Math.min(30, streak * 2);
-      const headBonus = headshot ? 12 : 0;
+      const t = targets[hitIndex];
+
+      if (t.type === "clock") {
+        timeLeft = clamp(timeLeft + TIME_BONUS, 0, TIME_CAP);
+        // reward a little score too
+        score += 15;
+        streak += 1;
+        hits += 1;
+        targets.splice(hitIndex, 1);
+        syncUI();
+        return;
+      }
+
+      const basePts = 12;
+      const streakBonus = Math.min(36, streak * 2);
+      const headBonus = headshot ? 16 : 0;
       score += basePts + streakBonus + headBonus;
+
       hits += 1;
       streak += 1;
-
       targets.splice(hitIndex, 1);
     } else {
       misses += 1;
@@ -490,7 +696,7 @@
     syncUI();
   }
 
-  // Mouse aim
+  // Aim
   canvas.addEventListener("mousemove", (e) => {
     const r = canvas.getBoundingClientRect();
     aimX = (e.clientX - r.left) * (W / r.width);
@@ -509,18 +715,12 @@
     if (e.code === "KeyP") { e.preventDefault(); if (state==="play"||state==="pause") togglePause(); }
   });
 
-  function togglePause(){
-    if (state === "play") state = "pause";
-    else if (state === "pause") state = "play";
-    syncUI();
-  }
-
   btnStart.addEventListener("click", () => start());
   btnPause.addEventListener("click", () => { if (state==="play"||state==="pause") togglePause(); });
 
   btnShare.addEventListener("click", async () => {
     const url = "https://thefutureworld2055-cyber.github.io/wfl-hub/passing-lab.html";
-    const text = `I scored ${score} in Livingston’s Passing Lab 🏈🎯 Try to beat me: ${url}`;
+    const text = `I scored ${score} in Livingston’s Passing Lab 🏈🎯 Beat me: ${url}`;
     if (navigator.share) {
       try { await navigator.share({ title: "Livingston’s Passing Lab", text, url }); return; } catch {}
     }
@@ -531,20 +731,28 @@
   function update(dt){
     if (state !== "play") return;
 
+    // cooldown tick
+    if (cdT > 0) cdT = Math.max(0, cdT - dt);
+
     timeLeft -= dt;
     if (timeLeft <= 0) { timeLeft = 0; gameOver(); return; }
 
-    // difficulty ramps
-    const progress = 1 - (timeLeft / 60);
-    spawnEvery = clamp(0.9 - progress * 0.35, 0.45, 0.9);
+    // difficulty ramps gently (but still “less targets”)
+    const progress = 1 - (timeLeft / START_TIME);
+    spawnEvery = clamp(SPAWN_BASE - progress * 0.25, SPAWN_MIN, SPAWN_BASE);
 
-    // spawn
+    // spawn (but cap total targets)
     spawnT += dt;
     if (spawnT >= spawnEvery) {
       spawnT = 0;
-      // slight chance of double route
-      spawnTarget();
-      if (Math.random() < 0.25) spawnTarget();
+
+      if (targets.length < MAX_TARGETS) {
+        // small chance for clock target (rare + valuable)
+        // increase chance slightly when time is low
+        const clockChance = timeLeft <= 10 ? 0.22 : 0.12;
+        if (Math.random() < clockChance) spawnClock();
+        else spawnReceiver();
+      }
     }
 
     // move targets
@@ -552,11 +760,15 @@
       const t = targets[i];
       t.x += t.dir * t.spd * dt;
 
-      // remove if off-screen (counts as miss + breaks streak)
-      if (t.x < -120 || t.x > W + 120) {
+      // if receiver leaves screen: counts as miss (and breaks streak)
+      if (t.x < -140 || t.x > W + 140) {
         targets.splice(i, 1);
-        misses += 1;
-        streak = 0;
+
+        // Clock leaving shouldn't punish as harshly
+        if (t.type === "receiver") {
+          misses += 1;
+          streak = 0;
+        }
       }
     }
 
@@ -564,15 +776,16 @@
   }
 
   function render(dt){
-    drawField(dt);
+    drawStadium(dt);
     drawQB();
 
     // targets
-    for (const t of targets) drawReceiver(t, dt);
+    for (const t of targets) {
+      if (t.type === "receiver") drawReceiver(t, dt);
+      else drawClock(t, dt);
+    }
 
-    // crosshair last
     drawCrosshair();
-
     drawOverlay();
   }
 
