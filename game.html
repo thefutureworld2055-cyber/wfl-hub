@@ -6,7 +6,7 @@
   <title>WFL — Endless Runner</title>
   <link rel="stylesheet" href="style.css">
   <style>
-    .hud { display:flex; gap:14px; flex-wrap:wrap; align-items:center; }
+    .hud { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
     .hud span { display:inline-block; padding:6px 10px; border:1px solid var(--border); border-radius:12px; background:#0b1220; }
     canvas { width:100%; max-width: 980px; border:1px solid var(--border); border-radius:14px; background:#0b1220; display:block; }
     .hint { font-size:12px; color:var(--muted); margin-top:10px; }
@@ -40,25 +40,29 @@
   <main class="wrap">
     <div class="card">
       <h2>WFL Endless Runner</h2>
+
       <div class="hud">
         <span><strong>Score:</strong> <span id="score">0</span></span>
         <span><strong>High:</strong> <span id="high">0</span></span>
         <span><strong>Speed:</strong> <span id="spd">1.0x</span></span>
-        <span><strong>Mode:</strong> <span id="mode">Running</span></span>
+        <span><strong>Status:</strong> <span id="status">Ready</span></span>
+        <span><strong>Shield:</strong> <span id="shield">Off</span></span>
+        <span><strong>Turbo:</strong> <span id="turbo">Off</span></span>
       </div>
 
       <div class="btnrow">
         <button id="btnStart">Start / Restart</button>
         <button id="btnPause">Pause</button>
+        <button id="btnShare">Share score</button>
       </div>
 
       <p class="hint">
-        Controls: <strong>Space / ↑ / Click / Tap</strong> to jump • <strong>↓</strong> to slide under hurdles •
-        On game over, press <strong>Start</strong> or <strong>Space</strong>.
+        Controls: <strong>Space / ↑ / Click / Tap</strong> to jump • <strong>↓</strong> to slide •
+        Press <strong>P</strong> to pause. Grab power-ups!
       </p>
 
       <canvas id="c" width="980" height="420"></canvas>
-      <p class="hint">Tip: This is “arcade canon.” Weak games don’t matter when your fans can play the WFL.</p>
+      <p class="hint">Power-ups: <strong>Shield</strong> = one free hit • <strong>Turbo</strong> = speed burst.</p>
     </div>
   </main>
 
@@ -68,17 +72,20 @@
   const canvas = document.getElementById("c");
   const ctx = canvas.getContext("2d");
 
-  const scoreEl = document.getElementById("score");
-  const highEl = document.getElementById("high");
-  const spdEl = document.getElementById("spd");
-  const modeEl = document.getElementById("mode");
+  const scoreEl  = document.getElementById("score");
+  const highEl   = document.getElementById("high");
+  const spdEl    = document.getElementById("spd");
+  const statusEl = document.getElementById("status");
+  const shieldEl = document.getElementById("shield");
+  const turboEl  = document.getElementById("turbo");
 
   const btnStart = document.getElementById("btnStart");
   const btnPause = document.getElementById("btnPause");
+  const btnShare = document.getElementById("btnShare");
 
   // ---------- Helpers ----------
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const rand = (a, b) => a + Math.random() * (b - a);
+  const rand  = (a, b) => a + Math.random() * (b - a);
   const choice = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
   function aabb(ax, ay, aw, ah, bx, by, bw, bh) {
@@ -89,15 +96,20 @@
   const W = canvas.width;
   const H = canvas.height;
 
-  const groundY = 330;          // top of ground line
-  const gravity = 2200;         // px/s^2
-  const jumpVel = 860;          // px/s
-  const slideDuration = 0.55;   // seconds
+  const groundY = 330;
+  const gravity = 2300;
+  const jumpVel = 900;
+  const slideDuration = 0.55;
 
-  const baseSpeed = 380;        // px/s
-  const speedGain = 10;         // px/s per ~second-ish (scaled)
-  const spawnBase = 1.1;        // seconds
-  const spawnMin = 0.55;        // seconds
+  const baseSpeed = 390;
+  const speedGain = 14;
+
+  const spawnBase = 1.05;
+  const spawnMin  = 0.52;
+
+  // power-up spawns
+  const powerSpawnBase = 3.2; // seconds
+  const powerSpawnMin  = 2.2;
 
   // ---------- State ----------
   let running = false;
@@ -105,21 +117,32 @@
   let gameOver = false;
 
   let tPrev = performance.now();
+
+  let scoreFloat = 0; // fix: always accumulates
   let score = 0;
+
   let high = Number(localStorage.getItem("wfl_runner_high") || 0);
 
   let speed = baseSpeed;
   let spawnTimer = 0;
   let spawnEvery = spawnBase;
 
-  // Parallax
-  let bg1 = 0, bg2 = 0;
+  let powerTimer = 0;
+  let powerEvery = powerSpawnBase;
 
-  // ---------- Player (pixel-ish drawn in code) ----------
+  // Parallax
+  let bg1 = 0, bg2 = 0, bg3 = 0;
+
+  // Power status
+  let shield = 0;     // 0 or 1 (one free hit)
+  let turboT = 0;     // seconds remaining
+  let turboMult = 1;  // 1 or >1
+
+  // ---------- Player ----------
   const player = {
-    x: 140,
+    x: 150,
     y: groundY - 72,
-    w: 42,
+    w: 44,
     h: 72,
     vy: 0,
     onGround: true,
@@ -129,8 +152,7 @@
   };
 
   function playerBox() {
-    // Slightly forgiving hitbox
-    const pad = 6;
+    const pad = 7;
     return {
       x: player.x + pad,
       y: player.y + pad,
@@ -139,18 +161,44 @@
     };
   }
 
+  function syncUI() {
+    scoreEl.textContent = score.toString();
+    highEl.textContent  = high.toString();
+    spdEl.textContent   = (speed / baseSpeed).toFixed(1) + "x";
+
+    if (!running) statusEl.textContent = "Ready";
+    else if (gameOver) statusEl.textContent = "Game Over";
+    else if (paused) statusEl.textContent = "Paused";
+    else if (player.sliding) statusEl.textContent = "Sliding";
+    else statusEl.textContent = "Running";
+
+    shieldEl.textContent = shield ? "On" : "Off";
+    turboEl.textContent  = turboT > 0 ? "On" : "Off";
+  }
+
   function startGame() {
     running = true;
     paused = false;
     gameOver = false;
 
+    scoreFloat = 0;
     score = 0;
+
     speed = baseSpeed;
     spawnTimer = 0;
     spawnEvery = spawnBase;
 
+    powerTimer = 0;
+    powerEvery = powerSpawnBase;
+
     obstacles.length = 0;
-    bg1 = 0; bg2 = 0;
+    pickups.length = 0;
+
+    bg1 = 0; bg2 = 0; bg3 = 0;
+
+    shield = 0;
+    turboT = 0;
+    turboMult = 1;
 
     player.y = groundY - 72;
     player.vy = 0;
@@ -164,7 +212,6 @@
 
   function endGame() {
     gameOver = true;
-    running = true; // keep rendering
     if (score > high) {
       high = score;
       localStorage.setItem("wfl_runner_high", String(high));
@@ -178,47 +225,67 @@
     syncUI();
   }
 
-  function syncUI() {
-    scoreEl.textContent = score.toString();
-    highEl.textContent = high.toString();
-    spdEl.textContent = (speed / baseSpeed).toFixed(1) + "x";
-    if (gameOver) modeEl.textContent = "Game Over";
-    else if (paused) modeEl.textContent = "Paused";
-    else if (player.sliding) modeEl.textContent = "Sliding";
-    else modeEl.textContent = "Running";
-  }
-
   // ---------- Obstacles ----------
   const obstacles = [];
 
   function spawnObstacle() {
-    // Football-themed obstacle types:
-    // cone: small ground
-    // dummy: tall ground
-    // hurdle: overhead (must slide)
-    // football: rolling ground
     const type = choice(["cone", "dummy", "hurdle", "football"]);
 
-    let o = { type, x: W + 30, y: 0, w: 0, h: 0, vy: 0, rot: 0 };
+    let o = { type, x: W + 30, y: 0, w: 0, h: 0, rot: 0 };
 
     if (type === "cone") {
       o.w = 26; o.h = 34;
       o.y = groundY - o.h;
     } else if (type === "dummy") {
-      o.w = 34; o.h = 62;
+      o.w = 38; o.h = 66;
       o.y = groundY - o.h;
     } else if (type === "hurdle") {
-      // place higher so jumping doesn't always solve it; sliding is intended
-      o.w = 62; o.h = 26;
-      o.y = groundY - 96; // overhead bar
+      o.w = 70; o.h = 28;
+      o.y = groundY - 102;
     } else if (type === "football") {
-      o.w = 34; o.h = 22;
+      o.w = 36; o.h = 22;
       o.y = groundY - o.h;
-      o.vy = 0;
       o.rot = rand(0, Math.PI * 2);
     }
 
+    // avoid impossible stacks
+    const last = obstacles[obstacles.length - 1];
+    if (last && (W + 30) - last.x < 160) return;
+
     obstacles.push(o);
+  }
+
+  function obstacleHitbox(o) {
+    if (o.type === "hurdle") return { x: o.x + 6, y: o.y + 10, w: o.w - 12, h: o.h - 10 };
+    return { x: o.x + 5, y: o.y + 5, w: o.w - 10, h: o.h - 10 };
+  }
+
+  // ---------- Pickups (Power-ups) ----------
+  const pickups = [];
+
+  function spawnPickup() {
+    const type = choice(["shield", "turbo"]);
+    const p = { type, x: W + 30, y: 0, w: 26, h: 26, rot: 0 };
+
+    // place it either on ground or slightly above so jump can grab
+    if (Math.random() < 0.55) p.y = groundY - p.h - 8;
+    else p.y = groundY - 120;
+
+    pickups.push(p);
+  }
+
+  function pickupHitbox(p) {
+    return { x: p.x + 2, y: p.y + 2, w: p.w - 4, h: p.h - 4 };
+  }
+
+  function applyPickup(type) {
+    if (type === "shield") {
+      shield = 1;
+    } else if (type === "turbo") {
+      turboT = 2.2;      // seconds
+      turboMult = 1.35;  // speed multiplier
+    }
+    syncUI();
   }
 
   // ---------- Input ----------
@@ -238,179 +305,249 @@
     if (player.onGround && !player.sliding) {
       player.sliding = true;
       player.slideT = slideDuration;
-      // lower hitbox by changing player height temporarily
       player.h = 52;
       player.y = groundY - player.h;
     }
   }
 
   window.addEventListener("keydown", (e) => {
-    if (e.code === "Space" || e.code === "ArrowUp") { e.preventDefault(); jump(); }
+    if (e.code === "Space" || e.code === "ArrowUp") { e.preventDefault(); if (!running) startGame(); else jump(); }
     if (e.code === "ArrowDown") { e.preventDefault(); slide(); }
     if (e.code === "KeyP") { e.preventDefault(); togglePause(); }
   });
 
-  canvas.addEventListener("pointerdown", () => jump());
+  canvas.addEventListener("pointerdown", () => {
+    if (!running) startGame();
+    else jump();
+  });
 
   btnStart.addEventListener("click", () => startGame());
   btnPause.addEventListener("click", () => togglePause());
 
+  btnShare.addEventListener("click", async () => {
+    const url = "https://thefutureworld2055-cyber.github.io/wfl-hub/game.html";
+    const text = `I scored ${score} in WFL Endless Runner 🏈🔥 Try to beat me: ${url}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: "WFL Endless Runner", text, url }); return; } catch {}
+    }
+    try { await navigator.clipboard.writeText(text); alert("Copied to clipboard!"); } catch { alert(text); }
+  });
+
   // ---------- Drawing ----------
-  function clear() {
-    ctx.clearRect(0, 0, W, H);
-  }
+  function clear() { ctx.clearRect(0, 0, W, H); }
 
-  function drawBackground(dt) {
-    // simple parallax stripes + stadium lights
-    bg1 = (bg1 - speed * 0.10 * dt) % W;
-    bg2 = (bg2 - speed * 0.25 * dt) % W;
+  function drawBackground(dt, effectiveSpeed) {
+    bg1 = (bg1 - effectiveSpeed * 0.06 * dt) % W;
+    bg2 = (bg2 - effectiveSpeed * 0.14 * dt) % W;
+    bg3 = (bg3 - effectiveSpeed * 0.28 * dt) % W;
 
-    // sky
-    ctx.fillStyle = "#09101e";
+    // sky gradient
+    ctx.fillStyle = "#071022";
     ctx.fillRect(0, 0, W, H);
 
-    // far stands
-    ctx.fillStyle = "#0c1730";
-    for (let x = bg1; x < W + 80; x += 80) {
-      ctx.fillRect(x, 120, 60, 70);
+    // crowd band
+    ctx.fillStyle = "#0a1a36";
+    ctx.fillRect(0, 85, W, 85);
+
+    // crowd dots
+    ctx.globalAlpha = 0.65;
+    for (let x = (bg1 * -1) % 16; x < W; x += 16) {
+      const y = 100 + (x % 32 ? 0 : 10);
+      ctx.fillStyle = (x % 48 === 0) ? "#1b2a4a" : "#0f2a5a";
+      ctx.fillRect(x, y, 10, 10);
+    }
+    ctx.globalAlpha = 1;
+
+    // stadium lights
+    ctx.fillStyle = "#1a2b55";
+    for (let x = bg2; x < W + 180; x += 180) {
+      ctx.fillRect(x, 20, 14, 95);
+      ctx.fillRect(x - 22, 30, 12, 70);
+      ctx.fillRect(x + 22, 30, 12, 70);
+      // light heads
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(x - 26, 18, 60, 8);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#1a2b55";
     }
 
-    // lights
-    ctx.fillStyle = "#1b2a4a";
-    for (let x = bg2; x < W + 120; x += 120) {
-      ctx.fillRect(x, 70, 12, 80);
-      ctx.fillRect(x - 18, 70, 12, 60);
-      ctx.fillRect(x + 18, 70, 12, 60);
-    }
-
-    // ground
-    ctx.fillStyle = "#071225";
+    // field
+    ctx.fillStyle = "#04152c";
     ctx.fillRect(0, groundY, W, H - groundY);
 
-    // yard ticks
-    ctx.fillStyle = "#0e2550";
-    for (let x = (bg2 * -1) % 60; x < W; x += 60) {
-      ctx.fillRect(x, groundY + 22, 6, 18);
+    // turf stripes
+    ctx.globalAlpha = 0.35;
+    for (let i = 0; i < 12; i++) {
+      ctx.fillStyle = i % 2 === 0 ? "#0b2b5b" : "#08315f";
+      ctx.fillRect(i * (W / 12), groundY, (W / 12), H - groundY);
+    }
+    ctx.globalAlpha = 1;
+
+    // yard lines & numbers (scrolling)
+    const tickSpacing = 90;
+    const offset = (bg3 * -1) % tickSpacing;
+
+    ctx.fillStyle = "#d7e6ff";
+    ctx.globalAlpha = 0.7;
+
+    for (let x = offset; x < W; x += tickSpacing) {
+      ctx.fillRect(x, groundY + 18, 4, 54); // main tick
+      ctx.fillRect(x + 26, groundY + 22, 2, 18);
+      ctx.fillRect(x + 26, groundY + 50, 2, 18);
+
+      // small number blocks
+      ctx.globalAlpha = 0.4;
+      ctx.fillRect(x + 10, groundY + 80, 14, 8);
+      ctx.globalAlpha = 0.7;
     }
 
-    // ground line
-    ctx.fillStyle = "#123062";
+    ctx.globalAlpha = 1;
+
+    // field line
+    ctx.fillStyle = "#123b79";
     ctx.fillRect(0, groundY, W, 3);
   }
 
   function drawPlayer(dt) {
-    // SNES-ish chunky pixels by drawing rectangles; no external sprite needed.
+    // Facing RIGHT (toward obstacles)
     player.animT += dt;
-    const step = Math.sin(player.animT * 14) * 2; // run bob
+
+    const runPhase = player.onGround && !player.sliding ? player.animT * 14 : 0;
+    const bob = player.onGround && !player.sliding ? Math.sin(runPhase) * 2 : 0;
+
+    const legSwing = player.onGround && !player.sliding ? Math.sin(runPhase) * 6 : 0;
+    const armSwing = player.onGround && !player.sliding ? Math.sin(runPhase + Math.PI) * 5 : 0;
 
     const x = player.x;
-    const y = player.y + (player.onGround && !player.sliding ? step : 0);
+    const y = player.y + bob;
 
     // palette
-    const skin = "#4b2a1a";          // dark skin tone
-    const jersey = "#2a0f56";        // dark purple jersey
-    const helmet = "#3a1475";        // purple helmet
-    const orange = "#f08a1a";        // orange highlights
-    const pants = "#e8eef7";         // white pants
+    const skin   = "#4b2a1a";
+    const jersey = "#2a0f56";
+    const helmet = "#3a1475";
+    const orange = "#f08a1a";
+    const pants  = "#e8eef7";
     const shadow = "#0b0f1b";
 
     // shadow
     ctx.fillStyle = shadow;
     ctx.globalAlpha = 0.35;
-    ctx.fillRect(x + 6, groundY + 8, 36, 10);
+    ctx.fillRect(x + 6, groundY + 8, 38, 10);
     ctx.globalAlpha = 1;
 
-    // body proportions
     const w = player.w;
     const h = player.h;
 
     // legs (pants)
     ctx.fillStyle = pants;
-    const legSwing = player.onGround && !player.sliding ? Math.sin(player.animT * 14) * 6 : 0;
-    ctx.fillRect(x + 10 + legSwing * 0.10, y + h - 26, 10, 20);
-    ctx.fillRect(x + 22 - legSwing * 0.10, y + h - 26, 10, 20);
+    ctx.fillRect(x + 11 + legSwing*0.10, y + h - 26, 10, 20);
+    ctx.fillRect(x + 23 - legSwing*0.10, y + h - 26, 10, 20);
 
-    // orange stripe on pants
+    // orange stripe
     ctx.fillStyle = orange;
-    ctx.fillRect(x + 20, y + h - 26, 4, 20);
+    ctx.fillRect(x + 21, y + h - 26, 4, 20);
 
     // shoes
     ctx.fillStyle = "#0a0a0a";
-    ctx.fillRect(x + 9, y + h - 8, 12, 8);
-    ctx.fillRect(x + 21, y + h - 8, 12, 8);
+    ctx.fillRect(x + 10, y + h - 8, 12, 8);
+    ctx.fillRect(x + 22, y + h - 8, 12, 8);
 
     // torso (jersey)
     ctx.fillStyle = jersey;
-    ctx.fillRect(x + 10, y + 24, 24, 26);
+    ctx.fillRect(x + 10, y + 24, 26, 26);
 
-    // shoulder orange highlight
+    // shoulder orange highlight (now on FRONT shoulder)
     ctx.fillStyle = orange;
-    ctx.fillRect(x + 30, y + 26, 6, 8);
+    ctx.fillRect(x + 10, y + 26, 6, 8);
 
-    // arms (skin)
+    // arms
     ctx.fillStyle = skin;
-    ctx.fillRect(x + 6, y + 28, 8, 16);
-    ctx.fillRect(x + 32, y + 30, 8, 14);
+    // back arm
+    ctx.fillRect(x + 30, y + 30 + armSwing*0.08, 8, 14);
+    // front arm
+    ctx.fillRect(x + 6, y + 28 - armSwing*0.08, 8, 16);
 
     // gloves
     ctx.fillStyle = "#1a1a1a";
-    ctx.fillRect(x + 5, y + 40, 10, 6);
-    ctx.fillRect(x + 31, y + 40, 10, 6);
+    ctx.fillRect(x + 5,  y + 40 - armSwing*0.08, 10, 6);
+    ctx.fillRect(x + 29, y + 40 + armSwing*0.08, 10, 6);
 
-    // helmet (purple)
+    // helmet
     ctx.fillStyle = helmet;
-    ctx.fillRect(x + 10, y + 6, 24, 20);
+    ctx.fillRect(x + 10, y + 6, 26, 20);
 
-    // face opening (skin)
+    // face opening (skin) – on front side now
     ctx.fillStyle = skin;
-    ctx.fillRect(x + 12, y + 12, 10, 10);
+    ctx.fillRect(x + 24, y + 12, 10, 10);
 
-    // facemask (orange)
+    // facemask (orange) – on RIGHT/front side
     ctx.fillStyle = orange;
-    ctx.fillRect(x + 12, y + 16, 14, 3);
-    ctx.fillRect(x + 12, y + 12, 3, 10);
+    ctx.fillRect(x + 18, y + 16, 14, 3);
+    ctx.fillRect(x + 32, y + 12, 3, 10);
 
     // visor highlight
     ctx.fillStyle = "#ffffff";
-    ctx.globalAlpha = 0.25;
-    ctx.fillRect(x + 12, y + 8, 10, 3);
+    ctx.globalAlpha = 0.22;
+    ctx.fillRect(x + 24, y + 8, 10, 3);
     ctx.globalAlpha = 1;
 
-    // Slide pose hint
-    if (player.sliding) {
-      ctx.globalAlpha = 0.25;
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(x + 2, y + h - 20, 50, 4);
+    // Jersey number "1"
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x + 21, y + 28, 4, 18);
+    ctx.fillStyle = orange;
+    ctx.fillRect(x + 20, y + 28, 6, 2);
+    ctx.fillRect(x + 20, y + 44, 6, 2);
+
+    // Shield ring effect
+    if (shield) {
+      ctx.globalAlpha = 0.22;
+      ctx.strokeStyle = "#9ad1ff";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(x + w/2, y + h/2, 34, 0, Math.PI*2);
+      ctx.stroke();
       ctx.globalAlpha = 1;
     }
   }
 
   function drawObstacle(o) {
-    // Football-themed stylized obstacles
     if (o.type === "cone") {
       ctx.fillStyle = "#ff7a00";
       ctx.fillRect(o.x, o.y, o.w, o.h);
       ctx.fillStyle = "#ffffff";
-      ctx.fillRect(o.x + 4, o.y + 10, o.w - 8, 6);
+      ctx.globalAlpha = 0.65;
+      ctx.fillRect(o.x + 5, o.y + 10, o.w - 10, 6);
+      ctx.globalAlpha = 1;
+      // base
+      ctx.fillStyle = "#b25300";
+      ctx.fillRect(o.x, o.y + o.h - 4, o.w, 4);
     }
     else if (o.type === "dummy") {
-      // tackling dummy
       ctx.fillStyle = "#c4452c";
       ctx.fillRect(o.x, o.y, o.w, o.h);
       ctx.fillStyle = "#3a1475";
       ctx.fillRect(o.x + 6, o.y + 10, o.w - 12, 10);
       ctx.fillStyle = "#0a0a0a";
       ctx.fillRect(o.x + 4, o.y + o.h - 10, o.w - 8, 10);
+      // straps
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(o.x + 8, o.y + 30, o.w - 16, 3);
+      ctx.fillRect(o.x + 8, o.y + 44, o.w - 16, 3);
+      ctx.globalAlpha = 1;
     }
     else if (o.type === "hurdle") {
-      // overhead bar
-      ctx.fillStyle = "#b8c5db";
+      ctx.fillStyle = "#cfd8e6";
       ctx.fillRect(o.x, o.y, o.w, o.h);
       ctx.fillStyle = "#0a0a0a";
-      ctx.fillRect(o.x + 6, o.y + o.h - 6, o.w - 12, 6);
+      ctx.fillRect(o.x + 8, o.y + o.h - 6, o.w - 16, 6);
+      // supports
+      ctx.fillStyle = "#9aa6b8";
+      ctx.fillRect(o.x + 6, o.y + o.h, 6, 20);
+      ctx.fillRect(o.x + o.w - 12, o.y + o.h, 6, 20);
     }
     else if (o.type === "football") {
-      // rolling football
       ctx.save();
       ctx.translate(o.x + o.w/2, o.y + o.h/2);
       ctx.rotate(o.rot);
@@ -418,37 +555,69 @@
       ctx.fillRect(-o.w/2, -o.h/2, o.w, o.h);
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(-2, -o.h/2, 4, o.h);
+      // laces
+      ctx.globalAlpha = 0.6;
+      ctx.fillRect(-o.w/2 + 6, -2, o.w - 12, 4);
+      ctx.globalAlpha = 1;
       ctx.restore();
     }
   }
 
-  function obstacleHitbox(o) {
-    // forgiving hitboxes
-    if (o.type === "hurdle") {
-      // Only collide with a lower portion to make slide feel fair
-      return { x: o.x + 4, y: o.y + 8, w: o.w - 8, h: o.h - 8 };
+  function drawPickup(p) {
+    if (p.type === "shield") {
+      // shield icon
+      ctx.fillStyle = "#9ad1ff";
+      ctx.globalAlpha = 0.85;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#071022";
+      ctx.fillRect(p.x + 8, p.y + 6, p.w - 16, p.h - 12);
+      ctx.fillStyle = "#9ad1ff";
+      ctx.fillRect(p.x + 11, p.y + 10, p.w - 22, p.h - 20);
+    } else if (p.type === "turbo") {
+      // lightning bolt
+      ctx.fillStyle = "#ffd447";
+      ctx.globalAlpha = 0.9;
+      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#071022";
+      ctx.beginPath();
+      ctx.moveTo(p.x + 14, p.y + 4);
+      ctx.lineTo(p.x + 9,  p.y + 14);
+      ctx.lineTo(p.x + 15, p.y + 14);
+      ctx.lineTo(p.x + 11, p.y + 22);
+      ctx.lineTo(p.x + 20, p.y + 12);
+      ctx.lineTo(p.x + 14, p.y + 12);
+      ctx.closePath();
+      ctx.fill();
     }
-    return { x: o.x + 4, y: o.y + 4, w: o.w - 8, h: o.h - 8 };
   }
 
   // ---------- Update ----------
   function update(dt) {
-    if (!running) return;
-    if (paused) return;
+    if (!running || paused || gameOver) return;
+
+    // turbo timer
+    if (turboT > 0) {
+      turboT -= dt;
+      if (turboT <= 0) { turboT = 0; turboMult = 1; }
+    }
 
     // difficulty
     speed += speedGain * dt;
+
+    const effectiveSpeed = speed * turboMult;
+
     spawnEvery = clamp(spawnBase - (speed - baseSpeed) / 1400, spawnMin, spawnBase);
 
-    // score increases with speed
-    score += Math.floor((speed * dt) / 12);
-    if (score < 0) score = 0;
+    // score (fix: always increases smoothly)
+    scoreFloat += effectiveSpeed * dt * 0.10;
+    score = Math.floor(scoreFloat);
 
     // player physics
     player.vy += gravity * dt;
     player.y += player.vy * dt;
 
-    // ground collision
     const standingH = 72;
     if (!player.sliding) player.h = standingH;
 
@@ -470,33 +639,68 @@
       }
     }
 
-    // spawn
+    // obstacle spawn
     spawnTimer += dt;
     if (spawnTimer >= spawnEvery) {
       spawnTimer = 0;
       spawnObstacle();
     }
 
+    // pickup spawn
+    powerEvery = clamp(powerSpawnBase - (speed - baseSpeed) / 2200, powerSpawnMin, powerSpawnBase);
+    powerTimer += dt;
+    if (powerTimer >= powerEvery) {
+      powerTimer = 0;
+      // don’t spawn too many at once
+      if (pickups.length < 2) spawnPickup();
+    }
+
     // move obstacles
     for (let i = obstacles.length - 1; i >= 0; i--) {
       const o = obstacles[i];
-      o.x -= speed * dt;
-      if (o.type === "football") o.rot += (speed * dt) / 40;
-
-      if (o.x + o.w < -50) obstacles.splice(i, 1);
+      o.x -= effectiveSpeed * dt;
+      if (o.type === "football") o.rot += (effectiveSpeed * dt) / 40;
+      if (o.x + o.w < -60) obstacles.splice(i, 1);
     }
 
-    // collision
-    const p = playerBox();
-    for (const o of obstacles) {
-      const hb = obstacleHitbox(o);
-      if (aabb(p.x, p.y, p.w, p.h, hb.x, hb.y, hb.w, hb.h)) {
-        endGame();
-        break;
+    // move pickups
+    for (let i = pickups.length - 1; i >= 0; i--) {
+      const p = pickups[i];
+      p.x -= effectiveSpeed * dt;
+      if (p.x + p.w < -60) pickups.splice(i, 1);
+    }
+
+    // collisions
+    const pb = playerBox();
+
+    // pickups collision
+    for (let i = pickups.length - 1; i >= 0; i--) {
+      const p = pickups[i];
+      const hb = pickupHitbox(p);
+      if (aabb(pb.x, pb.y, pb.w, pb.h, hb.x, hb.y, hb.w, hb.h)) {
+        applyPickup(p.type);
+        pickups.splice(i, 1);
       }
     }
 
-    // highscore update
+    // obstacles collision
+    for (let i = 0; i < obstacles.length; i++) {
+      const o = obstacles[i];
+      const hb = obstacleHitbox(o);
+      if (aabb(pb.x, pb.y, pb.w, pb.h, hb.x, hb.y, hb.w, hb.h)) {
+        if (shield) {
+          // consume shield and delete the obstacle you hit
+          shield = 0;
+          obstacles.splice(i, 1);
+          break;
+        } else {
+          endGame();
+          break;
+        }
+      }
+    }
+
+    // high score
     if (score > high) {
       high = score;
       localStorage.setItem("wfl_runner_high", String(high));
@@ -508,7 +712,12 @@
   // ---------- Render ----------
   function render(dt) {
     clear();
-    drawBackground(dt);
+
+    const effectiveSpeed = speed * turboMult;
+    drawBackground(dt, running && !paused && !gameOver ? effectiveSpeed : baseSpeed * 0.1);
+
+    // pickups behind obstacles
+    for (const p of pickups) drawPickup(p);
 
     // obstacles
     for (const o of obstacles) drawObstacle(o);
@@ -520,13 +729,18 @@
     ctx.fillStyle = "#ffffff";
     ctx.globalAlpha = 0.85;
     ctx.font = "16px sans-serif";
+
     if (!running) {
-      ctx.fillText("Press Start to play", 16, 24);
+      ctx.fillText("Press Start / Click to play", 16, 24);
     } else if (paused) {
-      ctx.fillText("Paused (press P to resume)", 16, 24);
+      ctx.fillText("Paused (P to resume)", 16, 24);
     } else if (gameOver) {
-      ctx.fillText("GAME OVER — press Start or Space to retry", 16, 24);
+      ctx.fillText("GAME OVER — Start or Space to retry", 16, 24);
+      ctx.fillText("Tip: Shield saves you once 🛡️", 16, 44);
+    } else if (turboT > 0) {
+      ctx.fillText("TURBO!", 16, 24);
     }
+
     ctx.globalAlpha = 1;
   }
 
@@ -546,16 +760,8 @@
   syncUI();
   requestAnimationFrame(loop);
 
-  // default to ready state
+  // ready state
   running = false;
-
-  // allow space to start too
-  window.addEventListener("keydown", (e) => {
-    if (!running && (e.code === "Space" || e.code === "ArrowUp")) {
-      e.preventDefault();
-      startGame();
-    }
-  });
 
 })();
 </script>
