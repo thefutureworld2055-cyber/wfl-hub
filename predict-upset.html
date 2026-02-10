@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WFL — Predict the Upset</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    .opt{ padding:12px; border:1px solid var(--border); border-radius:12px; background:#0b1220; margin:10px 0; display:flex; justify-content:space-between; gap:10px; align-items:center;}
+    button{ padding:8px 12px; border-radius:12px; border:1px solid var(--border); background:#0f1623; color:var(--text); cursor:pointer; font-weight:900; }
+    button:hover{ border-color: var(--link); }
+    .small{ font-size:12px; color:var(--muted); }
+  </style>
 </head>
 
 <body>
@@ -22,28 +28,55 @@
   <main class="wrap">
     <div class="card">
       <h2>Predict the upset</h2>
-      <p class="muted">Pick one underdog you think will shock the league this week.</p>
+      <p class="muted">Pick one underdog you believe in. Saved on your device.</p>
+
+      <div id="games"></div>
 
       <div class="embed-wrap">
-        <h3 style="margin-top:0;">This week’s upset options</h3>
-        <ul>
-          <li>Underdog Team 1 vs Favorite Team 1</li>
-          <li>Underdog Team 2 vs Favorite Team 2</li>
-          <li>Underdog Team 3 vs Favorite Team 3</li>
-        </ul>
-        <p class="muted" style="font-size:12px;">Update these matchups weekly based on your schedule.</p>
+        <p><strong>Your upset pick:</strong> <span id="pick">None yet</span></p>
+        <p class="small">Update the matchups weekly by editing the list in the code.</p>
+        <button id="clear">Clear my pick</button>
       </div>
-
-      <hr style="border:0; border-top:1px solid var(--border); margin:16px 0;">
-
-      <p><strong>Submit your pick (recommended):</strong></p>
-      <p class="muted">Use a quick form so you can tally picks later.</p>
-      <p>
-        <a href="PASTE_UPSET_FORM_LINK_HERE" target="_blank" rel="noopener">Submit upset pick →</a>
-      </p>
-
-      <p class="muted" style="font-size:12px;">Then post: “Upset pick leader: Underdog Team 2 (38%)” in <a href="news.html">News</a>.</p>
     </div>
   </main>
+
+<script>
+  // EDIT THIS WEEKLY
+  const UPSET_OPTIONS = [
+    { underdog: "Underdog Team 1", favorite: "Favorite Team 1" },
+    { underdog: "Underdog Team 2", favorite: "Favorite Team 2" },
+    { underdog: "Underdog Team 3", favorite: "Favorite Team 3" }
+  ];
+
+  const KEY = "wfl_upset_pick";
+  const pickEl = document.getElementById("pick");
+  const games = document.getElementById("games");
+
+  function load(){
+    pickEl.textContent = localStorage.getItem(KEY) || "None yet";
+  }
+
+  function render(){
+    games.innerHTML = "";
+    UPSET_OPTIONS.forEach(g=>{
+      const row = document.createElement("div");
+      row.className = "opt";
+      row.innerHTML = `<div><strong>${g.underdog}</strong> vs ${g.favorite}<div class="small">Click to lock in the underdog.</div></div>`;
+      const btn = document.createElement("button");
+      btn.textContent = "Pick";
+      btn.onclick = () => { localStorage.setItem(KEY, g.underdog); load(); };
+      row.appendChild(btn);
+      games.appendChild(row);
+    });
+  }
+
+  document.getElementById("clear").onclick = () => {
+    localStorage.removeItem(KEY);
+    load();
+  };
+
+  render();
+  load();
+</script>
 </body>
 </html>
