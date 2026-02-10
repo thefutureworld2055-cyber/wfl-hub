@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WFL — Endless Runner</title>
+  <title>Custer Dash — WFL</title>
   <link rel="stylesheet" href="style.css">
   <style>
     .hud { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
@@ -39,15 +39,15 @@
 
   <main class="wrap">
     <div class="card">
-      <h2>WFL Endless Runner</h2>
+      <h2>Custer Dash</h2>
 
       <div class="hud">
         <span><strong>Score:</strong> <span id="score">0</span></span>
         <span><strong>High:</strong> <span id="high">0</span></span>
         <span><strong>Speed:</strong> <span id="spd">1.0x</span></span>
-        <span><strong>Status:</strong> <span id="status">Ready</span></span>
+        <span><strong>Status:</strong> <span id="status">Menu</span></span>
         <span><strong>Shield:</strong> <span id="shield">Off</span></span>
-        <span><strong>Turbo:</strong> <span id="turbo">Off</span></span>
+        <span><strong>Boots:</strong> <span id="boots">Off</span></span>
       </div>
 
       <div class="btnrow">
@@ -57,12 +57,11 @@
       </div>
 
       <p class="hint">
-        Controls: <strong>Space / ↑ / Click / Tap</strong> to jump • <strong>↓</strong> to slide •
-        Press <strong>P</strong> to pause. Grab power-ups!
+        Controls: <strong>Space / ↑ / Click / Tap</strong> to jump • <strong>↓</strong> to slide • <strong>P</strong> to pause.
+        Powerups: <strong>Shield</strong> blocks one hit • <strong>Boots</strong> = turbo burst.
       </p>
 
       <canvas id="c" width="980" height="420"></canvas>
-      <p class="hint">Power-ups: <strong>Shield</strong> = one free hit • <strong>Turbo</strong> = speed burst.</p>
     </div>
   </main>
 
@@ -77,16 +76,16 @@
   const spdEl    = document.getElementById("spd");
   const statusEl = document.getElementById("status");
   const shieldEl = document.getElementById("shield");
-  const turboEl  = document.getElementById("turbo");
+  const bootsEl  = document.getElementById("boots");
 
   const btnStart = document.getElementById("btnStart");
   const btnPause = document.getElementById("btnPause");
   const btnShare = document.getElementById("btnShare");
 
   // ---------- Helpers ----------
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const rand  = (a, b) => a + Math.random() * (b - a);
-  const choice = (arr) => arr[Math.floor(Math.random() * arr.length)];
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const rand  = (a,b)=>a+Math.random()*(b-a);
+  const choice = (arr)=>arr[(Math.random()*arr.length)|0];
 
   function aabb(ax, ay, aw, ah, bx, by, bw, bh) {
     return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
@@ -96,32 +95,27 @@
   const W = canvas.width;
   const H = canvas.height;
 
-  const groundY = 330;
-  const gravity = 2300;
-  const jumpVel = 900;
+  const groundY = 332;
+  const gravity = 2350;
+  const jumpVel = 910;
   const slideDuration = 0.55;
 
-  const baseSpeed = 390;
-  const speedGain = 14;
+  const baseSpeed = 410;
+  const speedGain = 15;
 
-  const spawnBase = 1.05;
+  const spawnBase = 1.02;
   const spawnMin  = 0.52;
 
-  // power-up spawns
-  const powerSpawnBase = 3.2; // seconds
-  const powerSpawnMin  = 2.2;
+  const powerSpawnBase = 3.1;
+  const powerSpawnMin  = 2.1;
 
   // ---------- State ----------
-  let running = false;
-  let paused = false;
-  let gameOver = false;
-
+  let state = "menu"; // menu | playing | paused | gameover
   let tPrev = performance.now();
 
-  let scoreFloat = 0; // fix: always accumulates
+  let scoreFloat = 0;
   let score = 0;
-
-  let high = Number(localStorage.getItem("wfl_runner_high") || 0);
+  let high = Number(localStorage.getItem("custer_dash_high") || 0);
 
   let speed = baseSpeed;
   let spawnTimer = 0;
@@ -130,19 +124,26 @@
   let powerTimer = 0;
   let powerEvery = powerSpawnBase;
 
-  // Parallax
-  let bg1 = 0, bg2 = 0, bg3 = 0;
+  // stadium scroll layers
+  let bgCrowd = 0, bgBanners = 0, bgField = 0;
 
   // Power status
-  let shield = 0;     // 0 or 1 (one free hit)
-  let turboT = 0;     // seconds remaining
-  let turboMult = 1;  // 1 or >1
+  let shield = 0;      // 0/1
+  let bootsT = 0;      // seconds remaining
+  let bootsMult = 1;   // multiplier
+
+  // ---------- Start Menu Image ----------
+  // Upload your image to: assets/custer.png
+  const heroImg = new Image();
+  heroImg.src = "assets/custer.png";
+  let heroLoaded = false;
+  heroImg.onload = () => heroLoaded = true;
 
   // ---------- Player ----------
   const player = {
-    x: 150,
+    x: 160,
     y: groundY - 72,
-    w: 44,
+    w: 46,
     h: 72,
     vy: 0,
     onGround: true,
@@ -153,34 +154,28 @@
 
   function playerBox() {
     const pad = 7;
-    return {
-      x: player.x + pad,
-      y: player.y + pad,
-      w: player.w - pad*2,
-      h: player.h - pad*2
-    };
+    return { x: player.x+pad, y: player.y+pad, w: player.w-pad*2, h: player.h-pad*2 };
+  }
+
+  function effectiveSpeed() {
+    return speed * bootsMult;
   }
 
   function syncUI() {
     scoreEl.textContent = score.toString();
-    highEl.textContent  = high.toString();
-    spdEl.textContent   = (speed / baseSpeed).toFixed(1) + "x";
+    highEl.textContent = high.toString();
+    spdEl.textContent = (effectiveSpeed() / baseSpeed).toFixed(1) + "x";
 
-    if (!running) statusEl.textContent = "Ready";
-    else if (gameOver) statusEl.textContent = "Game Over";
-    else if (paused) statusEl.textContent = "Paused";
-    else if (player.sliding) statusEl.textContent = "Sliding";
-    else statusEl.textContent = "Running";
+    statusEl.textContent =
+      state === "menu" ? "Menu" :
+      state === "playing" ? (player.sliding ? "Sliding" : "Playing") :
+      state === "paused" ? "Paused" : "Game Over";
 
     shieldEl.textContent = shield ? "On" : "Off";
-    turboEl.textContent  = turboT > 0 ? "On" : "Off";
+    bootsEl.textContent = bootsT > 0 ? "On" : "Off";
   }
 
-  function startGame() {
-    running = true;
-    paused = false;
-    gameOver = false;
-
+  function resetRun() {
     scoreFloat = 0;
     score = 0;
 
@@ -194,11 +189,11 @@
     obstacles.length = 0;
     pickups.length = 0;
 
-    bg1 = 0; bg2 = 0; bg3 = 0;
+    bgCrowd = 0; bgBanners = 0; bgField = 0;
 
     shield = 0;
-    turboT = 0;
-    turboMult = 1;
+    bootsT = 0;
+    bootsMult = 1;
 
     player.y = groundY - 72;
     player.vy = 0;
@@ -206,93 +201,96 @@
     player.sliding = false;
     player.slideT = 0;
     player.animT = 0;
+  }
 
+  function startGame() {
+    resetRun();
+    state = "playing";
     syncUI();
   }
 
-  function endGame() {
-    gameOver = true;
+  function gameOver() {
+    state = "gameover";
     if (score > high) {
       high = score;
-      localStorage.setItem("wfl_runner_high", String(high));
+      localStorage.setItem("custer_dash_high", String(high));
     }
     syncUI();
   }
 
   function togglePause() {
-    if (!running || gameOver) return;
-    paused = !paused;
+    if (state === "playing") state = "paused";
+    else if (state === "paused") state = "playing";
     syncUI();
   }
 
-  // ---------- Obstacles ----------
+  // ---------- Obstacles: Football Players (Defenders) ----------
   const obstacles = [];
 
-  function spawnObstacle() {
-    const type = choice(["cone", "dummy", "hurdle", "football"]);
+  function spawnDefender() {
+    // Types: low tackle (jump), high hit (slide), normal
+    const type = choice(["tackleLow", "hitHigh", "normal"]);
+    const o = { type, x: W + 40, y: 0, w: 44, h: 70, anim: rand(0, 10) };
 
-    let o = { type, x: W + 30, y: 0, w: 0, h: 0, rot: 0 };
-
-    if (type === "cone") {
-      o.w = 26; o.h = 34;
+    if (type === "tackleLow") {
+      o.h = 52; o.w = 52;
       o.y = groundY - o.h;
-    } else if (type === "dummy") {
-      o.w = 38; o.h = 66;
+    } else if (type === "hitHigh") {
+      // “high” collision zone; forces slide
+      o.h = 64; o.w = 44;
       o.y = groundY - o.h;
-    } else if (type === "hurdle") {
-      o.w = 70; o.h = 28;
-      o.y = groundY - 102;
-    } else if (type === "football") {
-      o.w = 36; o.h = 22;
+      o.hitHigh = true;
+    } else {
+      o.h = 70; o.w = 44;
       o.y = groundY - o.h;
-      o.rot = rand(0, Math.PI * 2);
     }
 
-    // avoid impossible stacks
     const last = obstacles[obstacles.length - 1];
-    if (last && (W + 30) - last.x < 160) return;
+    if (last && (W + 40) - last.x < 170) return;
 
     obstacles.push(o);
   }
 
   function obstacleHitbox(o) {
-    if (o.type === "hurdle") return { x: o.x + 6, y: o.y + 10, w: o.w - 12, h: o.h - 10 };
-    return { x: o.x + 5, y: o.y + 5, w: o.w - 10, h: o.h - 10 };
+    // Fair hitboxes
+    if (o.type === "hitHigh") {
+      // collide mostly upper chest/helmet zone (so slide avoids)
+      return { x: o.x + 8, y: o.y + 6, w: o.w - 16, h: o.h - 30 };
+    }
+    if (o.type === "tackleLow") {
+      return { x: o.x + 8, y: o.y + 16, w: o.w - 16, h: o.h - 18 };
+    }
+    return { x: o.x + 7, y: o.y + 7, w: o.w - 14, h: o.h - 14 };
   }
 
   // ---------- Pickups (Power-ups) ----------
   const pickups = [];
 
   function spawnPickup() {
-    const type = choice(["shield", "turbo"]);
-    const p = { type, x: W + 30, y: 0, w: 26, h: 26, rot: 0 };
+    const type = choice(["shield", "boots"]); // boots = speed boots
+    const p = { type, x: W + 40, y: 0, w: 30, h: 30, bob: rand(0, Math.PI*2) };
 
-    // place it either on ground or slightly above so jump can grab
-    if (Math.random() < 0.55) p.y = groundY - p.h - 8;
-    else p.y = groundY - 120;
+    // place on ground or in jump lane
+    p.y = (Math.random() < 0.55) ? (groundY - p.h - 10) : (groundY - 120);
 
     pickups.push(p);
   }
 
   function pickupHitbox(p) {
-    return { x: p.x + 2, y: p.y + 2, w: p.w - 4, h: p.h - 4 };
+    return { x: p.x + 3, y: p.y + 3, w: p.w - 6, h: p.h - 6 };
   }
 
   function applyPickup(type) {
-    if (type === "shield") {
-      shield = 1;
-    } else if (type === "turbo") {
-      turboT = 2.2;      // seconds
-      turboMult = 1.35;  // speed multiplier
-    }
+    if (type === "shield") shield = 1;
+    if (type === "boots") { bootsT = 2.4; bootsMult = 1.38; }
     syncUI();
   }
 
   // ---------- Input ----------
   function jump() {
-    if (!running) return;
-    if (gameOver) { startGame(); return; }
-    if (paused) return;
+    if (state === "menu") { startGame(); return; }
+    if (state === "gameover") { startGame(); return; }
+    if (state !== "playing") return;
 
     if (player.onGround && !player.sliding) {
       player.vy = -jumpVel;
@@ -301,7 +299,7 @@
   }
 
   function slide() {
-    if (!running || paused || gameOver) return;
+    if (state !== "playing") return;
     if (player.onGround && !player.sliding) {
       player.sliding = true;
       player.slideT = slideDuration;
@@ -311,118 +309,132 @@
   }
 
   window.addEventListener("keydown", (e) => {
-    if (e.code === "Space" || e.code === "ArrowUp") { e.preventDefault(); if (!running) startGame(); else jump(); }
+    if (e.code === "Space" || e.code === "ArrowUp") { e.preventDefault(); jump(); }
     if (e.code === "ArrowDown") { e.preventDefault(); slide(); }
-    if (e.code === "KeyP") { e.preventDefault(); togglePause(); }
+    if (e.code === "KeyP") { e.preventDefault(); if (state !== "menu") togglePause(); }
   });
 
-  canvas.addEventListener("pointerdown", () => {
-    if (!running) startGame();
-    else jump();
-  });
+  canvas.addEventListener("pointerdown", () => jump());
 
   btnStart.addEventListener("click", () => startGame());
-  btnPause.addEventListener("click", () => togglePause());
+  btnPause.addEventListener("click", () => { if (state !== "menu") togglePause(); });
 
   btnShare.addEventListener("click", async () => {
     const url = "https://thefutureworld2055-cyber.github.io/wfl-hub/game.html";
-    const text = `I scored ${score} in WFL Endless Runner 🏈🔥 Try to beat me: ${url}`;
+    const text = `I scored ${score} in Custer Dash 🏈🔥 Beat me: ${url}`;
     if (navigator.share) {
-      try { await navigator.share({ title: "WFL Endless Runner", text, url }); return; } catch {}
+      try { await navigator.share({ title: "Custer Dash", text, url }); return; } catch {}
     }
     try { await navigator.clipboard.writeText(text); alert("Copied to clipboard!"); } catch { alert(text); }
   });
 
-  // ---------- Drawing ----------
-  function clear() { ctx.clearRect(0, 0, W, H); }
+  // ---------- Drawing: Stadium Background ----------
+  function drawStadium(dt) {
+    const sp = (state === "playing") ? effectiveSpeed() : baseSpeed * 0.08;
 
-  function drawBackground(dt, effectiveSpeed) {
-    bg1 = (bg1 - effectiveSpeed * 0.06 * dt) % W;
-    bg2 = (bg2 - effectiveSpeed * 0.14 * dt) % W;
-    bg3 = (bg3 - effectiveSpeed * 0.28 * dt) % W;
+    bgCrowd   = (bgCrowd   - sp * 0.05 * dt) % W;
+    bgBanners = (bgBanners - sp * 0.10 * dt) % W;
+    bgField   = (bgField   - sp * 0.30 * dt) % W;
 
-    // sky gradient
-    ctx.fillStyle = "#071022";
+    // sky
+    ctx.fillStyle = "#050b18";
     ctx.fillRect(0, 0, W, H);
 
-    // crowd band
-    ctx.fillStyle = "#0a1a36";
-    ctx.fillRect(0, 85, W, 85);
+    // upper stadium / roof band
+    ctx.fillStyle = "#0a1531";
+    ctx.fillRect(0, 0, W, 70);
 
-    // crowd dots
-    ctx.globalAlpha = 0.65;
-    for (let x = (bg1 * -1) % 16; x < W; x += 16) {
-      const y = 100 + (x % 32 ? 0 : 10);
-      ctx.fillStyle = (x % 48 === 0) ? "#1b2a4a" : "#0f2a5a";
-      ctx.fillRect(x, y, 10, 10);
-    }
-    ctx.globalAlpha = 1;
-
-    // stadium lights
+    // lights
     ctx.fillStyle = "#1a2b55";
-    for (let x = bg2; x < W + 180; x += 180) {
-      ctx.fillRect(x, 20, 14, 95);
-      ctx.fillRect(x - 22, 30, 12, 70);
-      ctx.fillRect(x + 22, 30, 12, 70);
-      // light heads
-      ctx.globalAlpha = 0.25;
+    for (let x = bgBanners; x < W + 220; x += 220) {
+      ctx.fillRect(x, 14, 14, 90);
+      ctx.globalAlpha = 0.22;
       ctx.fillStyle = "#ffffff";
-      ctx.fillRect(x - 26, 18, 60, 8);
+      ctx.fillRect(x - 34, 10, 86, 10);
       ctx.globalAlpha = 1;
       ctx.fillStyle = "#1a2b55";
     }
 
-    // field
-    ctx.fillStyle = "#04152c";
+    // scoreboard
+    ctx.fillStyle = "#0b1220";
+    ctx.fillRect(W - 230, 18, 200, 44);
+    ctx.strokeStyle = "#1f2c46";
+    ctx.strokeRect(W - 230, 18, 200, 44);
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.85;
+    ctx.font = "14px sans-serif";
+    ctx.fillText("CUSTER DASH", W - 216, 38);
+    ctx.globalAlpha = 0.65;
+    ctx.fillText("WFL", W - 216, 56);
+    ctx.globalAlpha = 1;
+
+    // crowd layers (fans as pixels)
+    ctx.fillStyle = "#0c1f46";
+    ctx.fillRect(0, 80, W, 95);
+
+    ctx.globalAlpha = 0.70;
+    for (let x = (bgCrowd * -1) % 14; x < W; x += 14) {
+      const y = 92 + ((x/14|0)%3)*16;
+      ctx.fillStyle = (x % 56 === 0) ? "#1d3b7a" : (x % 28 === 0 ? "#16315f" : "#102a52");
+      ctx.fillRect(x, y, 10, 10);
+      // occasional “orange shirt”
+      if (x % 98 === 0) { ctx.fillStyle = "#f08a1a"; ctx.fillRect(x+2, y+2, 6, 6); }
+    }
+    ctx.globalAlpha = 1;
+
+    // banners
+    for (let x = bgBanners; x < W + 240; x += 240) {
+      ctx.fillStyle = "#2a0f56";
+      ctx.fillRect(x, 175, 160, 18);
+      ctx.fillStyle = "#f08a1a";
+      ctx.fillRect(x+6, 179, 148, 10);
+    }
+
+    // field base
+    ctx.fillStyle = "#03132a";
     ctx.fillRect(0, groundY, W, H - groundY);
 
     // turf stripes
     ctx.globalAlpha = 0.35;
     for (let i = 0; i < 12; i++) {
-      ctx.fillStyle = i % 2 === 0 ? "#0b2b5b" : "#08315f";
+      ctx.fillStyle = i % 2 === 0 ? "#062b59" : "#05264e";
       ctx.fillRect(i * (W / 12), groundY, (W / 12), H - groundY);
     }
     ctx.globalAlpha = 1;
 
-    // yard lines & numbers (scrolling)
-    const tickSpacing = 90;
-    const offset = (bg3 * -1) % tickSpacing;
+    // yard lines
+    const spacing = 88;
+    const offset = (bgField * -1) % spacing;
 
     ctx.fillStyle = "#d7e6ff";
-    ctx.globalAlpha = 0.7;
-
-    for (let x = offset; x < W; x += tickSpacing) {
-      ctx.fillRect(x, groundY + 18, 4, 54); // main tick
-      ctx.fillRect(x + 26, groundY + 22, 2, 18);
-      ctx.fillRect(x + 26, groundY + 50, 2, 18);
-
-      // small number blocks
-      ctx.globalAlpha = 0.4;
-      ctx.fillRect(x + 10, groundY + 80, 14, 8);
-      ctx.globalAlpha = 0.7;
+    ctx.globalAlpha = 0.72;
+    for (let x = offset; x < W; x += spacing) {
+      ctx.fillRect(x, groundY + 16, 4, 62);
+      ctx.globalAlpha = 0.35;
+      ctx.fillRect(x + 10, groundY + 86, 14, 8);
+      ctx.globalAlpha = 0.72;
     }
-
     ctx.globalAlpha = 1;
 
-    // field line
+    // line
     ctx.fillStyle = "#123b79";
     ctx.fillRect(0, groundY, W, 3);
   }
 
+  // ---------- Draw Player (SNES-ish blocks) ----------
   function drawPlayer(dt) {
-    // Facing RIGHT (toward obstacles)
     player.animT += dt;
 
-    const runPhase = player.onGround && !player.sliding ? player.animT * 14 : 0;
-    const bob = player.onGround && !player.sliding ? Math.sin(runPhase) * 2 : 0;
+    const runPhase = (state === "playing" && player.onGround && !player.sliding) ? player.animT * 14 : 0;
+    const bob = (state === "playing" && player.onGround && !player.sliding) ? Math.sin(runPhase) * 2 : 0;
 
-    const legSwing = player.onGround && !player.sliding ? Math.sin(runPhase) * 6 : 0;
-    const armSwing = player.onGround && !player.sliding ? Math.sin(runPhase + Math.PI) * 5 : 0;
+    const legSwing = (state === "playing" && player.onGround && !player.sliding) ? Math.sin(runPhase) * 6 : 0;
+    const armSwing = (state === "playing" && player.onGround && !player.sliding) ? Math.sin(runPhase + Math.PI) * 5 : 0;
 
     const x = player.x;
     const y = player.y + bob;
 
-    // palette
+    // palette (your request)
     const skin   = "#4b2a1a";
     const jersey = "#2a0f56";
     const helmet = "#3a1475";
@@ -433,75 +445,73 @@
     // shadow
     ctx.fillStyle = shadow;
     ctx.globalAlpha = 0.35;
-    ctx.fillRect(x + 6, groundY + 8, 38, 10);
+    ctx.fillRect(x + 6, groundY + 8, 40, 10);
     ctx.globalAlpha = 1;
 
     const w = player.w;
     const h = player.h;
 
-    // legs (pants)
+    // legs
     ctx.fillStyle = pants;
-    ctx.fillRect(x + 11 + legSwing*0.10, y + h - 26, 10, 20);
-    ctx.fillRect(x + 23 - legSwing*0.10, y + h - 26, 10, 20);
+    ctx.fillRect(x + 12 + legSwing*0.10, y + h - 26, 10, 20);
+    ctx.fillRect(x + 24 - legSwing*0.10, y + h - 26, 10, 20);
 
     // orange stripe
     ctx.fillStyle = orange;
-    ctx.fillRect(x + 21, y + h - 26, 4, 20);
+    ctx.fillRect(x + 22, y + h - 26, 4, 20);
 
     // shoes
     ctx.fillStyle = "#0a0a0a";
-    ctx.fillRect(x + 10, y + h - 8, 12, 8);
-    ctx.fillRect(x + 22, y + h - 8, 12, 8);
+    ctx.fillRect(x + 11, y + h - 8, 12, 8);
+    ctx.fillRect(x + 23, y + h - 8, 12, 8);
 
-    // torso (jersey)
+    // torso
     ctx.fillStyle = jersey;
-    ctx.fillRect(x + 10, y + 24, 26, 26);
+    ctx.fillRect(x + 10, y + 24, 28, 26);
 
-    // shoulder orange highlight (now on FRONT shoulder)
+    // shoulder highlight
     ctx.fillStyle = orange;
-    ctx.fillRect(x + 10, y + 26, 6, 8);
+    ctx.fillRect(x + 10, y + 26, 7, 8);
 
     // arms
     ctx.fillStyle = skin;
-    // back arm
-    ctx.fillRect(x + 30, y + 30 + armSwing*0.08, 8, 14);
-    // front arm
-    ctx.fillRect(x + 6, y + 28 - armSwing*0.08, 8, 16);
+    ctx.fillRect(x + 32, y + 30 + armSwing*0.08, 8, 14);  // back arm
+    ctx.fillRect(x + 6,  y + 28 - armSwing*0.08, 8, 16);  // front arm
 
     // gloves
     ctx.fillStyle = "#1a1a1a";
     ctx.fillRect(x + 5,  y + 40 - armSwing*0.08, 10, 6);
-    ctx.fillRect(x + 29, y + 40 + armSwing*0.08, 10, 6);
+    ctx.fillRect(x + 31, y + 40 + armSwing*0.08, 10, 6);
 
     // helmet
     ctx.fillStyle = helmet;
-    ctx.fillRect(x + 10, y + 6, 26, 20);
+    ctx.fillRect(x + 10, y + 6, 28, 20);
 
-    // face opening (skin) – on front side now
+    // face opening (front/right)
     ctx.fillStyle = skin;
-    ctx.fillRect(x + 24, y + 12, 10, 10);
+    ctx.fillRect(x + 26, y + 12, 10, 10);
 
-    // facemask (orange) – on RIGHT/front side
+    // facemask
     ctx.fillStyle = orange;
-    ctx.fillRect(x + 18, y + 16, 14, 3);
-    ctx.fillRect(x + 32, y + 12, 3, 10);
+    ctx.fillRect(x + 20, y + 16, 14, 3);
+    ctx.fillRect(x + 35, y + 12, 3, 10);
 
     // visor highlight
     ctx.fillStyle = "#ffffff";
     ctx.globalAlpha = 0.22;
-    ctx.fillRect(x + 24, y + 8, 10, 3);
+    ctx.fillRect(x + 26, y + 8, 10, 3);
     ctx.globalAlpha = 1;
 
     // Jersey number "1"
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(x + 21, y + 28, 4, 18);
+    ctx.fillRect(x + 22, y + 28, 4, 18);
     ctx.fillStyle = orange;
-    ctx.fillRect(x + 20, y + 28, 6, 2);
-    ctx.fillRect(x + 20, y + 44, 6, 2);
+    ctx.fillRect(x + 21, y + 28, 6, 2);
+    ctx.fillRect(x + 21, y + 44, 6, 2);
 
     // Shield ring effect
     if (shield) {
-      ctx.globalAlpha = 0.22;
+      ctx.globalAlpha = 0.20;
       ctx.strokeStyle = "#9ad1ff";
       ctx.lineWidth = 4;
       ctx.beginPath();
@@ -511,110 +521,179 @@
     }
   }
 
-  function drawObstacle(o) {
-    if (o.type === "cone") {
-      ctx.fillStyle = "#ff7a00";
-      ctx.fillRect(o.x, o.y, o.w, o.h);
-      ctx.fillStyle = "#ffffff";
-      ctx.globalAlpha = 0.65;
-      ctx.fillRect(o.x + 5, o.y + 10, o.w - 10, 6);
+  // ---------- Draw Defenders (Football obstacles) ----------
+  function drawDefender(o, dt) {
+    o.anim += dt;
+    const bob = Math.sin(o.anim * 10) * 1.5;
+
+    const x = o.x;
+    const y = o.y + bob;
+
+    // defender palette (contrasting)
+    const helm = "#1b1f2a";
+    const uni  = "#0d4a2a";
+    const acc  = "#d7e6ff";
+    const skin = "#3a251a";
+
+    // shadow
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = "#0b0f1b";
+    ctx.fillRect(x + 6, groundY + 10, o.w - 12, 8);
+    ctx.globalAlpha = 1;
+
+    // legs
+    ctx.fillStyle = "#2a2a2a";
+    ctx.fillRect(x + 10, y + o.h - 22, 10, 16);
+    ctx.fillRect(x + 24, y + o.h - 22, 10, 16);
+
+    // torso
+    ctx.fillStyle = uni;
+    ctx.fillRect(x + 8, y + 22, o.w - 16, 26);
+
+    // number block
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = acc;
+    ctx.fillRect(x + 18, y + 28, 8, 16);
+    ctx.globalAlpha = 1;
+
+    // arms
+    ctx.fillStyle = skin;
+    ctx.fillRect(x + 4, y + 28, 8, 16);
+    ctx.fillRect(x + o.w - 12, y + 28, 8, 16);
+
+    // helmet
+    ctx.fillStyle = helm;
+    ctx.fillRect(x + 10, y + 6, o.w - 20, 18);
+
+    // facemask
+    ctx.fillStyle = acc;
+    ctx.globalAlpha = 0.65;
+    ctx.fillRect(x + 12, y + 16, o.w - 24, 3);
+    ctx.globalAlpha = 1;
+
+    // type indicator (subtle)
+    if (o.type === "hitHigh") {
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = "#f08a1a";
+      ctx.fillRect(x + 8, y + 12, o.w - 16, 4);
       ctx.globalAlpha = 1;
-      // base
-      ctx.fillStyle = "#b25300";
-      ctx.fillRect(o.x, o.y + o.h - 4, o.w, 4);
     }
-    else if (o.type === "dummy") {
-      ctx.fillStyle = "#c4452c";
-      ctx.fillRect(o.x, o.y, o.w, o.h);
-      ctx.fillStyle = "#3a1475";
-      ctx.fillRect(o.x + 6, o.y + 10, o.w - 12, 10);
-      ctx.fillStyle = "#0a0a0a";
-      ctx.fillRect(o.x + 4, o.y + o.h - 10, o.w - 8, 10);
-      // straps
-      ctx.globalAlpha = 0.5;
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(o.x + 8, o.y + 30, o.w - 16, 3);
-      ctx.fillRect(o.x + 8, o.y + 44, o.w - 16, 3);
+    if (o.type === "tackleLow") {
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = "#f08a1a";
+      ctx.fillRect(x + 8, y + o.h - 18, o.w - 16, 4);
       ctx.globalAlpha = 1;
-    }
-    else if (o.type === "hurdle") {
-      ctx.fillStyle = "#cfd8e6";
-      ctx.fillRect(o.x, o.y, o.w, o.h);
-      ctx.fillStyle = "#0a0a0a";
-      ctx.fillRect(o.x + 8, o.y + o.h - 6, o.w - 16, 6);
-      // supports
-      ctx.fillStyle = "#9aa6b8";
-      ctx.fillRect(o.x + 6, o.y + o.h, 6, 20);
-      ctx.fillRect(o.x + o.w - 12, o.y + o.h, 6, 20);
-    }
-    else if (o.type === "football") {
-      ctx.save();
-      ctx.translate(o.x + o.w/2, o.y + o.h/2);
-      ctx.rotate(o.rot);
-      ctx.fillStyle = "#8b4c22";
-      ctx.fillRect(-o.w/2, -o.h/2, o.w, o.h);
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(-2, -o.h/2, 4, o.h);
-      // laces
-      ctx.globalAlpha = 0.6;
-      ctx.fillRect(-o.w/2 + 6, -2, o.w - 12, 4);
-      ctx.globalAlpha = 1;
-      ctx.restore();
     }
   }
 
-  function drawPickup(p) {
+  // ---------- Power-ups (clear icons) ----------
+  function drawPickup(p, dt) {
+    p.bob += dt * 3;
+    const y = p.y + Math.sin(p.bob) * 2;
+
     if (p.type === "shield") {
-      // shield icon
-      ctx.fillStyle = "#9ad1ff";
+      // Blue badge shield
+      ctx.fillStyle = "#2a5bd6";
+      ctx.fillRect(p.x, y, p.w, p.h);
       ctx.globalAlpha = 0.85;
-      ctx.fillRect(p.x, p.y, p.w, p.h);
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = "#071022";
-      ctx.fillRect(p.x + 8, p.y + 6, p.w - 16, p.h - 12);
       ctx.fillStyle = "#9ad1ff";
-      ctx.fillRect(p.x + 11, p.y + 10, p.w - 22, p.h - 20);
-    } else if (p.type === "turbo") {
-      // lightning bolt
-      ctx.fillStyle = "#ffd447";
-      ctx.globalAlpha = 0.9;
-      ctx.fillRect(p.x, p.y, p.w, p.h);
+      ctx.fillRect(p.x + 5, y + 4, p.w - 10, p.h - 8);
       ctx.globalAlpha = 1;
       ctx.fillStyle = "#071022";
-      ctx.beginPath();
-      ctx.moveTo(p.x + 14, p.y + 4);
-      ctx.lineTo(p.x + 9,  p.y + 14);
-      ctx.lineTo(p.x + 15, p.y + 14);
-      ctx.lineTo(p.x + 11, p.y + 22);
-      ctx.lineTo(p.x + 20, p.y + 12);
-      ctx.lineTo(p.x + 14, p.y + 12);
-      ctx.closePath();
-      ctx.fill();
+      ctx.fillRect(p.x + 10, y + 8, p.w - 20, p.h - 16);
+      ctx.fillStyle = "#9ad1ff";
+      ctx.fillRect(p.x + 13, y + 11, p.w - 26, p.h - 22);
+    } else {
+      // Boots: orange boot icon
+      ctx.fillStyle = "#f08a1a";
+      ctx.fillRect(p.x, y, p.w, p.h);
+      ctx.fillStyle = "#071022";
+      // boot shape
+      ctx.fillRect(p.x + 8, y + 7, 10, 14);
+      ctx.fillRect(p.x + 18, y + 16, 8, 5);
+      ctx.fillStyle = "#d7e6ff";
+      ctx.globalAlpha = 0.7;
+      ctx.fillRect(p.x + 8, y + 21, 18, 3); // sole
+      ctx.globalAlpha = 1;
     }
+  }
+
+  // ---------- Menu Overlay ----------
+  function drawMenuOverlay() {
+    // dim
+    ctx.globalAlpha = 0.78;
+    ctx.fillStyle = "#050b18";
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = 1;
+
+    // title
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.95;
+    ctx.font = "52px sans-serif";
+    ctx.fillText("Custer Dash", 60, 90);
+
+    ctx.globalAlpha = 0.75;
+    ctx.font = "18px sans-serif";
+    ctx.fillText("Click / Space to start • ↑ jump • ↓ slide • Grab Shield + Boots", 60, 122);
+    ctx.globalAlpha = 1;
+
+    // image card
+    const cardX = 60, cardY = 150, cardW = 360, cardH = 240;
+    ctx.fillStyle = "#0b1220";
+    ctx.fillRect(cardX, cardY, cardW, cardH);
+    ctx.strokeStyle = "#1f2c46";
+    ctx.strokeRect(cardX, cardY, cardW, cardH);
+
+    if (heroLoaded) {
+      // contain image in card
+      const iw = heroImg.width, ih = heroImg.height;
+      const scale = Math.min((cardW-20)/iw, (cardH-20)/ih);
+      const dw = iw * scale, dh = ih * scale;
+      const dx = cardX + (cardW - dw)/2;
+      const dy = cardY + (cardH - dh)/2;
+      ctx.drawImage(heroImg, dx, dy, dw, dh);
+    } else {
+      ctx.fillStyle = "#ffffff";
+      ctx.globalAlpha = 0.7;
+      ctx.font = "16px sans-serif";
+      ctx.fillText("Loading image...", cardX + 18, cardY + 40);
+      ctx.globalAlpha = 1;
+    }
+
+    // right side info
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.9;
+    ctx.font = "22px sans-serif";
+    ctx.fillText("How to win:", 460, 190);
+    ctx.globalAlpha = 0.75;
+    ctx.font = "18px sans-serif";
+    ctx.fillText("• Dodge defenders", 460, 225);
+    ctx.fillText("• Slide under high hits", 460, 255);
+    ctx.fillText("• Shield blocks one tackle", 460, 285);
+    ctx.fillText("• Boots = turbo sprint", 460, 315);
+    ctx.fillText("• Beat the high score", 460, 345);
+    ctx.globalAlpha = 1;
   }
 
   // ---------- Update ----------
   function update(dt) {
-    if (!running || paused || gameOver) return;
+    if (state !== "playing") return;
 
-    // turbo timer
-    if (turboT > 0) {
-      turboT -= dt;
-      if (turboT <= 0) { turboT = 0; turboMult = 1; }
+    // boots timer
+    if (bootsT > 0) {
+      bootsT -= dt;
+      if (bootsT <= 0) { bootsT = 0; bootsMult = 1; }
     }
 
     // difficulty
     speed += speedGain * dt;
+    spawnEvery = clamp(spawnBase - (speed - baseSpeed)/1400, spawnMin, spawnBase);
 
-    const effectiveSpeed = speed * turboMult;
-
-    spawnEvery = clamp(spawnBase - (speed - baseSpeed) / 1400, spawnMin, spawnBase);
-
-    // score (fix: always increases smoothly)
-    scoreFloat += effectiveSpeed * dt * 0.10;
+    // score
+    scoreFloat += effectiveSpeed() * dt * 0.10;
     score = Math.floor(scoreFloat);
 
-    // player physics
+    // physics
     player.vy += gravity * dt;
     player.y += player.vy * dt;
 
@@ -625,9 +704,7 @@
       player.y = groundY - player.h;
       player.vy = 0;
       player.onGround = true;
-    } else {
-      player.onGround = false;
-    }
+    } else player.onGround = false;
 
     // slide timer
     if (player.sliding) {
@@ -639,62 +716,60 @@
       }
     }
 
-    // obstacle spawn
+    // spawn defenders
     spawnTimer += dt;
     if (spawnTimer >= spawnEvery) {
       spawnTimer = 0;
-      spawnObstacle();
+      spawnDefender();
     }
 
-    // pickup spawn
-    powerEvery = clamp(powerSpawnBase - (speed - baseSpeed) / 2200, powerSpawnMin, powerSpawnBase);
+    // spawn powerups
+    powerEvery = clamp(powerSpawnBase - (speed - baseSpeed)/2400, powerSpawnMin, powerSpawnBase);
     powerTimer += dt;
     if (powerTimer >= powerEvery) {
       powerTimer = 0;
-      // don’t spawn too many at once
       if (pickups.length < 2) spawnPickup();
     }
 
-    // move obstacles
+    // move defenders
+    const sp = effectiveSpeed();
     for (let i = obstacles.length - 1; i >= 0; i--) {
       const o = obstacles[i];
-      o.x -= effectiveSpeed * dt;
-      if (o.type === "football") o.rot += (effectiveSpeed * dt) / 40;
-      if (o.x + o.w < -60) obstacles.splice(i, 1);
+      o.x -= sp * dt;
+      if (o.x + o.w < -80) obstacles.splice(i, 1);
     }
 
     // move pickups
     for (let i = pickups.length - 1; i >= 0; i--) {
       const p = pickups[i];
-      p.x -= effectiveSpeed * dt;
-      if (p.x + p.w < -60) pickups.splice(i, 1);
+      p.x -= sp * dt;
+      if (p.x + p.w < -80) pickups.splice(i, 1);
     }
 
     // collisions
     const pb = playerBox();
 
-    // pickups collision
+    // pickups
     for (let i = pickups.length - 1; i >= 0; i--) {
       const p = pickups[i];
       const hb = pickupHitbox(p);
-      if (aabb(pb.x, pb.y, pb.w, pb.h, hb.x, hb.y, hb.w, hb.h)) {
+      if (aabb(pb.x,pb.y,pb.w,pb.h, hb.x,hb.y,hb.w,hb.h)) {
         applyPickup(p.type);
         pickups.splice(i, 1);
       }
     }
 
-    // obstacles collision
+    // defenders
     for (let i = 0; i < obstacles.length; i++) {
       const o = obstacles[i];
       const hb = obstacleHitbox(o);
-      if (aabb(pb.x, pb.y, pb.w, pb.h, hb.x, hb.y, hb.w, hb.h)) {
+      if (aabb(pb.x,pb.y,pb.w,pb.h, hb.x,hb.y,hb.w,hb.h)) {
         if (shield) {
-          // consume shield and delete the obstacle you hit
           shield = 0;
           obstacles.splice(i, 1);
           break;
         } else {
-          endGame();
+          gameOver();
           break;
         }
       }
@@ -703,7 +778,7 @@
     // high score
     if (score > high) {
       high = score;
-      localStorage.setItem("wfl_runner_high", String(high));
+      localStorage.setItem("custer_dash_high", String(high));
     }
 
     syncUI();
@@ -711,37 +786,46 @@
 
   // ---------- Render ----------
   function render(dt) {
-    clear();
+    drawStadium(dt);
 
-    const effectiveSpeed = speed * turboMult;
-    drawBackground(dt, running && !paused && !gameOver ? effectiveSpeed : baseSpeed * 0.1);
+    // pickups
+    for (const p of pickups) drawPickup(p, dt);
 
-    // pickups behind obstacles
-    for (const p of pickups) drawPickup(p);
-
-    // obstacles
-    for (const o of obstacles) drawObstacle(o);
+    // defenders
+    for (const o of obstacles) drawDefender(o, dt);
 
     // player
     drawPlayer(dt);
 
-    // overlay text
-    ctx.fillStyle = "#ffffff";
-    ctx.globalAlpha = 0.85;
-    ctx.font = "16px sans-serif";
-
-    if (!running) {
-      ctx.fillText("Press Start / Click to play", 16, 24);
-    } else if (paused) {
-      ctx.fillText("Paused (P to resume)", 16, 24);
-    } else if (gameOver) {
-      ctx.fillText("GAME OVER — Start or Space to retry", 16, 24);
-      ctx.fillText("Tip: Shield saves you once 🛡️", 16, 44);
-    } else if (turboT > 0) {
-      ctx.fillText("TURBO!", 16, 24);
+    // overlays
+    if (state === "menu") drawMenuOverlay();
+    if (state === "paused") {
+      ctx.globalAlpha = 0.75;
+      ctx.fillStyle = "#050b18";
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "42px sans-serif";
+      ctx.fillText("Paused", 60, 120);
+      ctx.font = "18px sans-serif";
+      ctx.globalAlpha = 0.8;
+      ctx.fillText("Press P to resume", 60, 152);
+      ctx.globalAlpha = 1;
     }
-
-    ctx.globalAlpha = 1;
+    if (state === "gameover") {
+      ctx.globalAlpha = 0.70;
+      ctx.fillStyle = "#050b18";
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "42px sans-serif";
+      ctx.fillText("Game Over", 60, 120);
+      ctx.font = "18px sans-serif";
+      ctx.globalAlpha = 0.85;
+      ctx.fillText("Press Start / Space / Click to retry", 60, 152);
+      ctx.fillText("Shield blocks one hit. Boots give turbo speed.", 60, 178);
+      ctx.globalAlpha = 1;
+    }
   }
 
   // ---------- Main Loop ----------
@@ -749,19 +833,15 @@
     const dt = Math.min(0.033, (now - tPrev) / 1000);
     tPrev = now;
 
-    update(dt);
+    if (state !== "paused") update(dt);
     render(dt);
 
     requestAnimationFrame(loop);
   }
 
-  // init
-  highEl.textContent = high.toString();
+  // ---------- Init ----------
   syncUI();
   requestAnimationFrame(loop);
-
-  // ready state
-  running = false;
 
 })();
 </script>
