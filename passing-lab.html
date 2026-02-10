@@ -1,0 +1,597 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Livingston’s Passing Lab — WFL Arcade</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .hud{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .hud span{ display:inline-block; padding:6px 10px; border:1px solid var(--border); border-radius:12px; background:#0b1220; }
+    canvas{ width:100%; max-width: 980px; border:1px solid var(--border); border-radius:14px; background:#0b1220; display:block; cursor: crosshair; }
+    .btnrow{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+    button{
+      padding:10px 14px; border-radius:12px; border:1px solid var(--border);
+      background:#0b1220; color:var(--text); cursor:pointer; font-weight:900;
+    }
+    button:hover{ border-color: var(--link); }
+    .hint{ font-size:12px; color:var(--muted); margin-top:10px; }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>WFL HUB</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="arcade.html">Arcade</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <div class="card">
+      <h2>Livingston’s Passing Lab</h2>
+
+      <div class="hud">
+        <span><strong>Score:</strong> <span id="score">0</span></span>
+        <span><strong>Hits:</strong> <span id="hits">0</span></span>
+        <span><strong>Misses:</strong> <span id="misses">0</span></span>
+        <span><strong>Streak:</strong> <span id="streak">0</span></span>
+        <span><strong>Accuracy:</strong> <span id="acc">0%</span></span>
+        <span><strong>Time:</strong> <span id="time">60</span>s</span>
+        <span><strong>High:</strong> <span id="high">0</span></span>
+      </div>
+
+      <div class="btnrow">
+        <button id="btnStart">Start</button>
+        <button id="btnPause">Pause</button>
+        <button id="btnShare">Share score</button>
+      </div>
+
+      <p class="hint">
+        Click moving receivers as they cross the field. Headshots are worth more. Misses break streaks.
+        (Mouse = aim, Click = throw)
+      </p>
+
+      <canvas id="c" width="980" height="460"></canvas>
+      <p class="hint">QB Livingston (#8) is static bottom-left. Receivers wear matching uniform.</p>
+    </div>
+  </main>
+
+<script>
+(() => {
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+
+  // UI
+  const scoreEl = document.getElementById("score");
+  const hitsEl = document.getElementById("hits");
+  const missesEl = document.getElementById("misses");
+  const streakEl = document.getElementById("streak");
+  const accEl = document.getElementById("acc");
+  const timeEl = document.getElementById("time");
+  const highEl = document.getElementById("high");
+
+  const btnStart = document.getElementById("btnStart");
+  const btnPause = document.getElementById("btnPause");
+  const btnShare = document.getElementById("btnShare");
+
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const rand = (a,b)=>a+Math.random()*(b-a);
+  const choice = (arr)=>arr[(Math.random()*arr.length)|0];
+
+  // Game state
+  let state = "menu"; // menu | play | pause | over
+  let tPrev = performance.now();
+
+  let score = 0;
+  let hits = 0;
+  let misses = 0;
+  let streak = 0;
+
+  let timeLeft = 60;
+  let spawnT = 0;
+  let spawnEvery = 0.85;
+
+  let high = Number(localStorage.getItem("passing_lab_high") || 0);
+
+  // Aim
+  let aimX = W/2, aimY = H/2;
+
+  // Targets (receivers)
+  const targets = [];
+
+  function reset() {
+    score = 0; hits = 0; misses = 0; streak = 0;
+    timeLeft = 60;
+    spawnT = 0;
+    spawnEvery = 0.85;
+    targets.length = 0;
+    syncUI();
+  }
+
+  function start() {
+    reset();
+    state = "play";
+    syncUI();
+  }
+
+  function gameOver() {
+    state = "over";
+    if (score > high) {
+      high = score;
+      localStorage.setItem("passing_lab_high", String(high));
+    }
+    syncUI();
+  }
+
+  function togglePause() {
+    if (state === "play") state = "pause";
+    else if (state === "pause") state = "play";
+    syncUI();
+  }
+
+  function syncUI() {
+    scoreEl.textContent = String(score);
+    hitsEl.textContent = String(hits);
+    missesEl.textContent = String(misses);
+    streakEl.textContent = String(streak);
+    timeEl.textContent = String(Math.max(0, Math.ceil(timeLeft)));
+    highEl.textContent = String(high);
+
+    const attempts = hits + misses;
+    const acc = attempts ? Math.round((hits/attempts)*100) : 0;
+    accEl.textContent = acc + "%";
+  }
+
+  // Spawn receiver targets moving left->right across mid field lanes
+  function spawnTarget() {
+    const laneY = choice([170, 210, 250, 290]); // mid field lanes
+    const size = rand(34, 44);
+    const speed = rand(180, 280) + (60 - timeLeft) * 1.2; // slightly faster over time
+    const headBonus = true;
+
+    // start off-screen left OR right to feel like “routes”
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    const x = dir === 1 ? -60 : W + 60;
+
+    targets.push({
+      x, y: laneY,
+      w: size, h: size + 18,
+      dir,
+      spd: speed,
+      bob: rand(0, Math.PI*2),
+      alive: true,
+      headBonus
+    });
+  }
+
+  // Drawing — Football field + stadium
+  function drawField(dt) {
+    // sky/stands
+    ctx.fillStyle = "#061022";
+    ctx.fillRect(0, 0, W, H);
+
+    // upper stands
+    ctx.fillStyle = "#0b1b3a";
+    ctx.fillRect(0, 0, W, 120);
+
+    // crowd dots
+    ctx.globalAlpha = 0.7;
+    for (let x=0; x<W; x+=14) {
+      for (let y=18; y<110; y+=18) {
+        ctx.fillStyle = (x+y)%56===0 ? "#f08a1a" : ((x+y)%28===0 ? "#203b77" : "#142a55");
+        ctx.fillRect(x+2, y+2, 8, 8);
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // lights
+    ctx.fillStyle = "#1a2b55";
+    for (let x=60; x<W; x+=240) {
+      ctx.fillRect(x, 0, 14, 90);
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(x-40, 4, 94, 10);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#1a2b55";
+    }
+
+    // field
+    ctx.fillStyle = "#031a34";
+    ctx.fillRect(0, 120, W, H-120);
+
+    // turf stripes
+    ctx.globalAlpha = 0.35;
+    for (let i=0; i<14; i++){
+      ctx.fillStyle = i%2===0 ? "#052a56" : "#042447";
+      ctx.fillRect(i*(W/14), 120, (W/14), H-120);
+    }
+    ctx.globalAlpha = 1;
+
+    // yard lines
+    ctx.fillStyle = "#d7e6ff";
+    ctx.globalAlpha = 0.75;
+    for (let x=40; x<W; x+=90){
+      ctx.fillRect(x, 140, 4, H-180);
+      ctx.globalAlpha = 0.35;
+      ctx.fillRect(x+10, H-42, 14, 8);
+      ctx.globalAlpha = 0.75;
+    }
+    ctx.globalAlpha = 1;
+
+    // endzone band at bottom
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = "#2a0f56";
+    ctx.fillRect(0, H-90, W, 90);
+    ctx.globalAlpha = 0.75;
+    ctx.fillStyle = "#f08a1a";
+    ctx.fillRect(0, H-86, W, 6);
+    ctx.globalAlpha = 1;
+
+    // mini scoreboard
+    ctx.fillStyle = "#0b1220";
+    ctx.fillRect(W-260, 128, 240, 44);
+    ctx.strokeStyle = "#1f2c46";
+    ctx.strokeRect(W-260, 128, 240, 44);
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.85;
+    ctx.font = "14px sans-serif";
+    ctx.fillText("LIVINGSTON'S PASSING LAB", W-246, 156);
+    ctx.globalAlpha = 1;
+  }
+
+  // Draw QB Livingston (static bottom-left)
+  function drawQB() {
+    const x = 90, y = H-140;
+
+    // palette requested:
+    const helm = "#0b2a56";   // dark blue helmet
+    const red = "#b21f2d";    // red jersey
+    const pants = "#e8eef7";  // white pants
+    const blue = "#0b2a56";   // dark blue highlights
+
+    // shadow
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = "#0b0f1b";
+    ctx.fillRect(x-10, H-48, 120, 14);
+    ctx.globalAlpha = 1;
+
+    // legs
+    ctx.fillStyle = pants;
+    ctx.fillRect(x+14, y+62, 18, 40);
+    ctx.fillRect(x+40, y+62, 18, 40);
+
+    // blue stripe
+    ctx.fillStyle = blue;
+    ctx.fillRect(x+34, y+62, 4, 40);
+
+    // shoes
+    ctx.fillStyle = "#0a0a0a";
+    ctx.fillRect(x+12, y+96, 22, 10);
+    ctx.fillRect(x+38, y+96, 22, 10);
+
+    // torso jersey
+    ctx.fillStyle = red;
+    ctx.fillRect(x+10, y+28, 60, 44);
+
+    // shoulder highlights
+    ctx.fillStyle = blue;
+    ctx.fillRect(x+10, y+28, 10, 10);
+    ctx.fillRect(x+60, y+28, 10, 10);
+
+    // helmet
+    ctx.fillStyle = helm;
+    ctx.fillRect(x+44, y+6, 34, 26);
+
+    // facemask
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = "#d7e6ff";
+    ctx.fillRect(x+52, y+18, 20, 3);
+    ctx.globalAlpha = 1;
+
+    // arms holding ball pose
+    ctx.fillStyle = "#4b2a1a"; // skin
+    ctx.fillRect(x+56, y+40, 26, 12); // forearm
+    ctx.fillRect(x+30, y+46, 26, 10); // near arm
+
+    // ball
+    ctx.fillStyle = "#8b4c22";
+    ctx.fillRect(x+62, y+40, 18, 14);
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.7;
+    ctx.fillRect(x+70, y+40, 3, 14);
+    ctx.globalAlpha = 1;
+
+    // back name + number "LIVINGSTON" and "8" (stylized on jersey back panel)
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.8;
+    ctx.fillRect(x+24, y+38, 32, 10); // name plate
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = red;
+    ctx.font = "8px sans-serif";
+    ctx.fillText("LIVINGSTON", x+25, y+46);
+
+    // number 8 block on back
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.85;
+    ctx.fillRect(x+34, y+50, 14, 18);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = red;
+    ctx.fillRect(x+36, y+52, 10, 4);
+    ctx.fillRect(x+36, y+59, 10, 4);
+    ctx.fillRect(x+36, y+66, 10, 4);
+  }
+
+  // Receiver targets (uniform copied, no name/number)
+  function drawReceiver(t, dt) {
+    t.bob += dt*6;
+    const bob = Math.sin(t.bob)*2;
+
+    const x = t.x, y = t.y + bob;
+
+    const helm = "#0b2a56";
+    const red  = "#b21f2d";
+    const pants= "#e8eef7";
+    const blue = "#0b2a56";
+
+    // body
+    ctx.globalAlpha = 0.95;
+    // legs
+    ctx.fillStyle = pants;
+    ctx.fillRect(x+10, y+36, 12, 26);
+    ctx.fillRect(x+26, y+36, 12, 26);
+    ctx.fillStyle = blue;
+    ctx.fillRect(x+23, y+36, 3, 26);
+
+    // torso
+    ctx.fillStyle = red;
+    ctx.fillRect(x+8, y+12, 34, 26);
+    ctx.fillStyle = blue;
+    ctx.fillRect(x+8, y+12, 6, 6);
+    ctx.fillRect(x+36, y+12, 6, 6);
+
+    // helmet
+    ctx.fillStyle = helm;
+    ctx.fillRect(x+26, y, 22, 16);
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = "#d7e6ff";
+    ctx.fillRect(x+30, y+8, 12, 3);
+    ctx.globalAlpha = 0.95;
+
+    // target ring
+    ctx.globalAlpha = 0.22;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x+24, y+26, 26, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // headshot zone indicator
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = "#f08a1a";
+    ctx.fillRect(x+32, y+2, 10, 10);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawCrosshair() {
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(aimX, aimY, 10, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(aimX-16, aimY); ctx.lineTo(aimX+16, aimY);
+    ctx.moveTo(aimX, aimY-16); ctx.lineTo(aimX, aimY+16);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function drawOverlay() {
+    if (state === "menu") {
+      ctx.globalAlpha = 0.78;
+      ctx.fillStyle = "#050b18";
+      ctx.fillRect(0,0,W,H);
+      ctx.globalAlpha = 1;
+
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "48px sans-serif";
+      ctx.fillText("Livingston’s Passing Lab", 60, 90);
+
+      ctx.globalAlpha = 0.8;
+      ctx.font = "18px sans-serif";
+      ctx.fillText("Click moving receivers to complete passes. Build streaks. 60 seconds.", 60, 124);
+      ctx.fillText("Click / Space to start.", 60, 152);
+      ctx.globalAlpha = 1;
+    }
+
+    if (state === "pause") {
+      ctx.globalAlpha = 0.78;
+      ctx.fillStyle = "#050b18";
+      ctx.fillRect(0,0,W,H);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "44px sans-serif";
+      ctx.fillText("Paused", 60, 110);
+      ctx.font = "18px sans-serif";
+      ctx.globalAlpha = 0.85;
+      ctx.fillText("Press P or Pause to resume.", 60, 142);
+      ctx.globalAlpha = 1;
+    }
+
+    if (state === "over") {
+      ctx.globalAlpha = 0.78;
+      ctx.fillStyle = "#050b18";
+      ctx.fillRect(0,0,W,H);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "44px sans-serif";
+      ctx.fillText("Time!", 60, 110);
+      ctx.font = "18px sans-serif";
+      ctx.globalAlpha = 0.85;
+      ctx.fillText("Press Start to run it back.", 60, 142);
+      ctx.fillText("Tip: click heads for bonus points.", 60, 168);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // Click to throw
+  function throwAt(x,y) {
+    if (state === "menu") { start(); return; }
+    if (state === "over") { start(); return; }
+    if (state !== "play") return;
+
+    // Find topmost hit target
+    // body box
+    let hitIndex = -1;
+    let headshot = false;
+
+    for (let i = targets.length - 1; i >= 0; i--) {
+      const t = targets[i];
+      const bx = t.x + 8, by = t.y + 8;
+      const bw = t.w - 16, bh = t.h - 10;
+
+      // head zone
+      const hx = t.x + 30, hy = t.y + 2, hw = 12, hh = 12;
+
+      if (x >= bx && x <= bx+bw && y >= by && y <= by+bh) {
+        hitIndex = i;
+        headshot = (x >= hx && x <= hx+hw && y >= hy && y <= hy+hh);
+        break;
+      }
+    }
+
+    if (hitIndex >= 0) {
+      const basePts = 10;
+      const streakBonus = Math.min(30, streak * 2);
+      const headBonus = headshot ? 12 : 0;
+      score += basePts + streakBonus + headBonus;
+      hits += 1;
+      streak += 1;
+
+      targets.splice(hitIndex, 1);
+    } else {
+      misses += 1;
+      streak = 0;
+    }
+
+    if (score > high) {
+      high = score;
+      localStorage.setItem("passing_lab_high", String(high));
+    }
+
+    syncUI();
+  }
+
+  // Mouse aim
+  canvas.addEventListener("mousemove", (e) => {
+    const r = canvas.getBoundingClientRect();
+    aimX = (e.clientX - r.left) * (W / r.width);
+    aimY = (e.clientY - r.top)  * (H / r.height);
+  });
+
+  canvas.addEventListener("pointerdown", (e) => {
+    const r = canvas.getBoundingClientRect();
+    const x = (e.clientX - r.left) * (W / r.width);
+    const y = (e.clientY - r.top)  * (H / r.height);
+    throwAt(x,y);
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.code === "Space") { e.preventDefault(); if (state==="menu"||state==="over") start(); }
+    if (e.code === "KeyP") { e.preventDefault(); if (state==="play"||state==="pause") togglePause(); }
+  });
+
+  function togglePause(){
+    if (state === "play") state = "pause";
+    else if (state === "pause") state = "play";
+    syncUI();
+  }
+
+  btnStart.addEventListener("click", () => start());
+  btnPause.addEventListener("click", () => { if (state==="play"||state==="pause") togglePause(); });
+
+  btnShare.addEventListener("click", async () => {
+    const url = "https://thefutureworld2055-cyber.github.io/wfl-hub/passing-lab.html";
+    const text = `I scored ${score} in Livingston’s Passing Lab 🏈🎯 Try to beat me: ${url}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: "Livingston’s Passing Lab", text, url }); return; } catch {}
+    }
+    try { await navigator.clipboard.writeText(text); alert("Copied to clipboard!"); } catch { alert(text); }
+  });
+
+  // Update loop
+  function update(dt){
+    if (state !== "play") return;
+
+    timeLeft -= dt;
+    if (timeLeft <= 0) { timeLeft = 0; gameOver(); return; }
+
+    // difficulty ramps
+    const progress = 1 - (timeLeft / 60);
+    spawnEvery = clamp(0.9 - progress * 0.35, 0.45, 0.9);
+
+    // spawn
+    spawnT += dt;
+    if (spawnT >= spawnEvery) {
+      spawnT = 0;
+      // slight chance of double route
+      spawnTarget();
+      if (Math.random() < 0.25) spawnTarget();
+    }
+
+    // move targets
+    for (let i = targets.length - 1; i >= 0; i--){
+      const t = targets[i];
+      t.x += t.dir * t.spd * dt;
+
+      // remove if off-screen (counts as miss + breaks streak)
+      if (t.x < -120 || t.x > W + 120) {
+        targets.splice(i, 1);
+        misses += 1;
+        streak = 0;
+      }
+    }
+
+    syncUI();
+  }
+
+  function render(dt){
+    drawField(dt);
+    drawQB();
+
+    // targets
+    for (const t of targets) drawReceiver(t, dt);
+
+    // crosshair last
+    drawCrosshair();
+
+    drawOverlay();
+  }
+
+  // Main loop
+  function loop(now){
+    const dt = Math.min(0.033, (now - tPrev)/1000);
+    tPrev = now;
+
+    if (state !== "pause") update(dt);
+    render(dt);
+
+    requestAnimationFrame(loop);
+  }
+
+  // init
+  highEl.textContent = String(high);
+  syncUI();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
