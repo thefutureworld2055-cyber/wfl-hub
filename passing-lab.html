@@ -54,12 +54,12 @@
       </div>
 
       <p class="hint">
-        Click receivers to complete passes. Headshots = bonus points. Clock targets add <strong>+10s</strong>.
-        Cooldown prevents spam (aim for clean throws).
+        Click receivers to complete passes. Hit the <strong>shrinking ring</strong> for Perfect throws (big bonus).
+        Clock targets add <strong>+10s</strong>. Cooldown stops spam.
       </p>
 
-      <canvas id="c" width="980" height="500"></canvas>
-      <p class="hint">QB Livingston (#8) is static bottom-left. Receivers wear matching uniform.</p>
+      <canvas id="c" width="980" height="520"></canvas>
+      <p class="hint">New: ball trail + impact flash, Perfect Window rings, upgraded sprites.</p>
     </div>
   </main>
 
@@ -87,49 +87,58 @@
   const rand = (a,b)=>a+Math.random()*(b-a);
   const choice = (arr)=>arr[(Math.random()*arr.length)|0];
 
-  // Palette for Livingston kit
+  // ---- Kit (Livingston) ----
+  // Livingston is WHITE: updated skin tone.
   const KIT = {
-    helm: "#0b2a56",   // dark blue helmet
-    jersey: "#b21f2d", // red jersey
-    pants: "#e8eef7",  // white pants
-    accent: "#0b2a56", // dark blue highlights
-    skin: "#4b2a1a"
+    helm: "#0b2a56",     // dark blue helmet
+    jersey: "#b21f2d",   // red jersey
+    pants: "#e8eef7",    // white pants
+    accent: "#0b2a56",   // dark blue highlights
+    skin: "#d8b08a"      // lighter skin tone
   };
 
-  // Game constants
-  const START_TIME = 30;        // requested
-  const TIME_BONUS = 10;        // clock target bonus
-  const TIME_CAP = 60;          // allow clocks to push time up to 60 (feels good)
-  const MAX_TARGETS = 4;        // “less targets”
-  const SPAWN_BASE = 1.35;      // slower spawn
-  const SPAWN_MIN  = 0.85;
+  // ---- Game constants ----
+  const START_TIME = 30;     // requested
+  const TIME_BONUS = 10;     // clock target +10s
+  const TIME_CAP = 60;       // max time w/ clocks
 
-  // Throw cooldown (requested)
-  const COOLDOWN = 0.38;        // seconds between throws
+  const MAX_TARGETS = 4;     // less targets
+  const SPAWN_BASE = 1.45;
+  const SPAWN_MIN  = 0.95;
 
-  // Game state
+  // Throw cooldown
+  const COOLDOWN = 0.42;
+
+  // Perfect Window ring timing
+  const PERFECT_LIFE = 1.05;     // seconds for ring to shrink
+  const PERFECT_RADIUS_START = 34;
+  const PERFECT_RADIUS_END   = 10;
+  const PERFECT_THRESHOLD    = 3.5; // px tolerance for "perfect"
+
+  // ---- State ----
   let state = "menu"; // menu | play | pause | over
   let tPrev = performance.now();
 
-  let score = 0;
-  let hits = 0;
-  let misses = 0;
-  let streak = 0;
-
+  let score = 0, hits = 0, misses = 0, streak = 0;
   let timeLeft = START_TIME;
+
   let spawnT = 0;
   let spawnEvery = SPAWN_BASE;
 
-  let cdT = 0; // cooldown remaining
+  let cdT = 0;
 
   let high = Number(localStorage.getItem("passing_lab_high") || 0);
 
   // Aim
   let aimX = W/2, aimY = H/2;
 
-  // Targets
-  // type: "receiver" | "clock"
+  // Targets: receiver | clock
   const targets = [];
+
+  // Visual effects: ball trails + impact flashes + floating text
+  const trails = [];
+  const impacts = [];
+  const floatText = [];
 
   function reset() {
     score = 0; hits = 0; misses = 0; streak = 0;
@@ -137,7 +146,12 @@
     spawnT = 0;
     spawnEvery = SPAWN_BASE;
     cdT = 0;
+
     targets.length = 0;
+    trails.length = 0;
+    impacts.length = 0;
+    floatText.length = 0;
+
     syncUI();
   }
 
@@ -174,148 +188,168 @@
     const acc = attempts ? Math.round((hits/attempts)*100) : 0;
     accEl.textContent = acc + "%";
 
-    if (cdT <= 0) cdEl.textContent = "Ready";
-    else cdEl.textContent = (cdT).toFixed(2) + "s";
+    cdEl.textContent = cdT <= 0 ? "Ready" : (cdT).toFixed(2) + "s";
   }
 
-  // Spawn receiver routes or clock targets
+  // ---- Spawning ----
   function spawnReceiver() {
-    const laneY = choice([185, 225, 265, 305]); // route lanes
-    const speed = rand(170, 245) + (START_TIME - timeLeft) * 2.2;
+    const laneY = choice([185, 230, 275, 320]);
+    const speed = rand(155, 225) + (START_TIME - timeLeft) * 2.0;
+
     const dir = Math.random() < 0.5 ? 1 : -1;
-    const x = dir === 1 ? -90 : W + 90;
+    const x = dir === 1 ? -120 : W + 120;
 
     targets.push({
       type: "receiver",
       x, y: laneY,
-      w: 52, h: 86, // bigger = more human readable
+      w: 58, h: 92,
       dir,
       spd: speed,
       bob: rand(0, Math.PI*2),
-      alive: true
+
+      // Perfect Window ring
+      ringT: 0,           // time alive for ring
+      ringLife: PERFECT_LIFE,
+      ringOk: true
     });
   }
 
   function spawnClock() {
-    // Put clocks slightly higher so they’re a “skill” target
-    const y = choice([165, 205, 245]);
+    const y = choice([175, 215, 255]);
     const dir = Math.random() < 0.5 ? 1 : -1;
-    const x = dir === 1 ? -90 : W + 90;
-    const spd = rand(160, 220);
+    const x = dir === 1 ? -120 : W + 120;
+    const spd = rand(150, 205);
 
     targets.push({
       type: "clock",
       x, y,
-      w: 44, h: 44,
+      w: 46, h: 46,
       dir,
       spd,
       bob: rand(0, Math.PI*2)
     });
   }
 
-  // Background (stadium + field + scoreboard)
+  // ---- Drawing: mega-upgraded stadium + field ----
   function drawStadium(dt) {
-    // Sky
-    ctx.fillStyle = "#050b18";
+    // Background gradient
+    const g = ctx.createLinearGradient(0,0,0,H);
+    g.addColorStop(0, "#040812");
+    g.addColorStop(0.45, "#061531");
+    g.addColorStop(1, "#031226");
+    ctx.fillStyle = g;
     ctx.fillRect(0,0,W,H);
 
-    // Upper deck / roof
-    ctx.fillStyle = "#07142e";
-    ctx.fillRect(0,0,W,95);
+    // Roof band
+    ctx.fillStyle = "#061026";
+    ctx.fillRect(0,0,W,92);
 
-    // Stadium lights
-    ctx.fillStyle = "#1a2b55";
+    // Lights (with glow)
     for (let x=70; x<W; x+=220) {
-      ctx.fillRect(x, 0, 14, 105);
-      ctx.globalAlpha = 0.22;
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(x-44, 8, 102, 12);
-      ctx.globalAlpha = 1;
       ctx.fillStyle = "#1a2b55";
+      ctx.fillRect(x, 0, 14, 110);
+
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(x-54, 10, 122, 16);
+      ctx.globalAlpha = 1;
+
+      ctx.globalAlpha = 0.10;
+      ctx.fillStyle = "#9ad1ff";
+      ctx.fillRect(x-80, 6, 170, 26);
+      ctx.globalAlpha = 1;
     }
 
     // Crowd bowl
-    ctx.fillStyle = "#0a1f45";
-    ctx.fillRect(0,95,W,140);
+    ctx.fillStyle = "#081b3d";
+    ctx.fillRect(0,92,W,165);
 
-    // Crowd pixels (denser + varied)
-    ctx.globalAlpha = 0.8;
-    for (let y=105; y<220; y+=16) {
-      for (let x=10; x<W; x+=14) {
-        const r = (x*37 + y*19) % 120;
+    // Crowd dots: denser + varied + tiny banners
+    ctx.globalAlpha = 0.85;
+    for (let y=104; y<245; y+=15) {
+      for (let x=10; x<W; x+=13) {
+        const r = (x*41 + y*23) % 140;
         ctx.fillStyle =
           r < 6  ? "#f08a1a" :
           r < 18 ? "#d7e6ff" :
-          r < 42 ? "#1b3b7a" :
-          r < 75 ? "#152f5a" :
-                  "#10264a";
-        ctx.fillRect(x, y, 9, 9);
+          r < 48 ? "#1c3c7a" :
+          r < 90 ? "#14305c" :
+                  "#0f274a";
+        ctx.fillRect(x, y, 8, 8);
       }
     }
     ctx.globalAlpha = 1;
 
-    // Mid banners
+    // Mid ribbon board
     ctx.fillStyle = "#0b1220";
-    ctx.fillRect(0,235,W,26);
-    ctx.globalAlpha = 0.75;
+    ctx.fillRect(0,257,W,26);
+    ctx.globalAlpha = 0.80;
     ctx.fillStyle = "#b21f2d";
-    for (let x=0; x<W; x+=170) ctx.fillRect(x+14, 242, 140, 12);
+    for (let x=0; x<W; x+=170) ctx.fillRect(x+14, 264, 140, 12);
     ctx.globalAlpha = 1;
 
-    // Scoreboard box
-    ctx.fillStyle = "#0b1220";
-    ctx.fillRect(W-330, 18, 300, 60);
-    ctx.strokeStyle = "#1f2c46";
-    ctx.strokeRect(W-330, 18, 300, 60);
-
-    ctx.fillStyle = "#ffffff";
-    ctx.globalAlpha = 0.9;
-    ctx.font = "16px sans-serif";
-    ctx.fillText("LIVINGSTON'S PASSING LAB", W-315, 42);
-    ctx.globalAlpha = 0.75;
-    ctx.fillText("WFL ARCADE", W-315, 64);
-    ctx.globalAlpha = 1;
-
-    // Field
+    // Field base
     ctx.fillStyle = "#031a34";
-    ctx.fillRect(0,261,W,H-261);
+    ctx.fillRect(0,283,W,H-283);
 
-    // Turf stripes
+    // Turf texture: stripes + tiny noise specks
     ctx.globalAlpha = 0.35;
     for (let i=0;i<14;i++){
       ctx.fillStyle = i%2===0 ? "#052a56" : "#042447";
-      ctx.fillRect(i*(W/14), 261, (W/14), H-261);
+      ctx.fillRect(i*(W/14), 283, (W/14), H-283);
+    }
+    ctx.globalAlpha = 0.14;
+    ctx.fillStyle = "#0b3a78";
+    for (let i=0;i<420;i++){
+      const x = (i*37)%W;
+      const y = 290 + ((i*61)%(H-300));
+      ctx.fillRect(x, y, 2, 2);
     }
     ctx.globalAlpha = 1;
 
     // Yard lines
     ctx.fillStyle = "#d7e6ff";
-    ctx.globalAlpha = 0.75;
-    for (let x=40; x<W; x+=90){
-      ctx.fillRect(x, 280, 4, H-330);
-      ctx.globalAlpha = 0.35;
-      ctx.fillRect(x+10, H-42, 14, 8);
-      ctx.globalAlpha = 0.75;
+    ctx.globalAlpha = 0.78;
+    for (let x=46; x<W; x+=92){
+      ctx.fillRect(x, 304, 4, H-360);
+      ctx.globalAlpha = 0.28;
+      ctx.fillRect(x+12, H-44, 14, 8);
+      ctx.globalAlpha = 0.78;
     }
     ctx.globalAlpha = 1;
 
     // Endzone band
     ctx.globalAlpha = 0.35;
     ctx.fillStyle = "#0b2a56";
-    ctx.fillRect(0, H-92, W, 92);
+    ctx.fillRect(0, H-96, W, 96);
     ctx.globalAlpha = 0.85;
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, H-92, W, 6);
+    ctx.fillRect(0, H-96, W, 6);
     ctx.globalAlpha = 1;
 
-    // Cooldown meter (visual)
-    const meterX = 18, meterY = 18, meterW = 180, meterH = 14;
+    // Scoreboard box
+    ctx.fillStyle = "#0b1220";
+    ctx.fillRect(W-340, 18, 310, 64);
+    ctx.strokeStyle = "#1f2c46";
+    ctx.strokeRect(W-340, 18, 310, 64);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.92;
+    ctx.font = "16px sans-serif";
+    ctx.fillText("LIVINGSTON'S PASSING LAB", W-325, 44);
+    ctx.globalAlpha = 0.75;
+    ctx.fillText("PERFECT WINDOWS • CLOCKS +10s", W-325, 66);
+    ctx.globalAlpha = 1;
+
+    // Cooldown meter
+    const meterX = 18, meterY = 18, meterW = 190, meterH = 14;
     ctx.fillStyle = "#0b1220";
     ctx.fillRect(meterX, meterY, meterW, meterH);
     ctx.strokeStyle = "#1f2c46";
     ctx.strokeRect(meterX, meterY, meterW, meterH);
+
     const pct = cdT <= 0 ? 1 : clamp(1 - (cdT / COOLDOWN), 0, 1);
-    ctx.globalAlpha = 0.85;
+    ctx.globalAlpha = 0.9;
     ctx.fillStyle = pct >= 1 ? "#9ad1ff" : "#f08a1a";
     ctx.fillRect(meterX+2, meterY+2, (meterW-4)*pct, meterH-4);
     ctx.globalAlpha = 1;
@@ -327,181 +361,194 @@
     ctx.globalAlpha = 1;
   }
 
-  // “More human” QB sprite: bigger, clearer, holding-ball pose
+  // ---- Improved QB sprite (normal head placement, better proportions) ----
   function drawQB() {
-    const x = 70, y = H-210; // anchor
-    const helm = KIT.helm, red = KIT.jersey, pants = KIT.pants, blue = KIT.accent, skin = KIT.skin;
-
-    // shadow
-    ctx.globalAlpha = 0.22;
-    ctx.fillStyle = "#0b0f1b";
-    ctx.fillRect(x+18, H-58, 160, 16);
-    ctx.globalAlpha = 1;
-
-    // legs (pants)
-    ctx.fillStyle = pants;
-    ctx.fillRect(x+40, y+120, 26, 58);
-    ctx.fillRect(x+78, y+120, 26, 58);
-
-    // stripe
-    ctx.fillStyle = blue;
-    ctx.fillRect(x+70, y+120, 6, 58);
-
-    // shoes
-    ctx.fillStyle = "#0a0a0a";
-    ctx.fillRect(x+38, y+168, 32, 14);
-    ctx.fillRect(x+76, y+168, 32, 14);
-
-    // torso (jersey)
-    ctx.fillStyle = red;
-    ctx.fillRect(x+34, y+58, 96, 72);
-
-    // shoulder pads highlight
-    ctx.fillStyle = blue;
-    ctx.fillRect(x+34, y+58, 16, 14);
-    ctx.fillRect(x+114, y+58, 16, 14);
-
-    // neck
-    ctx.fillStyle = skin;
-    ctx.fillRect(x+82, y+52, 12, 10);
-
-    // helmet
-    ctx.fillStyle = helm;
-    ctx.fillRect(x+92, y+18, 56, 40);
-
-    // face opening + eye dot
-    ctx.fillStyle = skin;
-    ctx.fillRect(x+122, y+32, 20, 16);
-    ctx.fillStyle = "#000000";
-    ctx.globalAlpha = 0.55;
-    ctx.fillRect(x+134, y+38, 3, 3);
-    ctx.globalAlpha = 1;
-
-    // facemask
-    ctx.globalAlpha = 0.7;
-    ctx.fillStyle = "#d7e6ff";
-    ctx.fillRect(x+116, y+44, 28, 4);
-    ctx.fillRect(x+142, y+30, 4, 24);
-    ctx.globalAlpha = 1;
-
-    // arms (throw-ready)
-    ctx.fillStyle = skin;
-    // back arm
-    ctx.fillRect(x+40, y+78, 22, 18);
-    // throwing arm
-    ctx.fillRect(x+116, y+72, 40, 16);
-
-    // gloves
-    ctx.fillStyle = "#e8eef7";
-    ctx.fillRect(x+116+34, y+72, 10, 16);
-
-    // ball near hand
-    ctx.fillStyle = "#8b4c22";
-    ctx.fillRect(x+152, y+72, 18, 14);
-    ctx.fillStyle = "#ffffff";
-    ctx.globalAlpha = 0.65;
-    ctx.fillRect(x+160, y+72, 3, 14);
-    ctx.globalAlpha = 1;
-
-    // back nameplate + number (stylized)
-    ctx.globalAlpha = 0.85;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(x+52, y+72, 60, 14);
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = red;
-    ctx.font = "9px sans-serif";
-    ctx.fillText("LIVINGSTON", x+55, y+82);
-
-    // number 8 on jersey (bigger)
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(x+76, y+92, 20, 28);
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = red;
-    ctx.fillRect(x+80, y+96, 12, 5);
-    ctx.fillRect(x+80, y+104, 12, 5);
-    ctx.fillRect(x+80, y+112, 12, 5);
-  }
-
-  // Receiver sprite: more human, clearer helmet/face, better silhouette
-  function drawReceiver(t, dt) {
-    t.bob += dt*5.2;
-    const bob = Math.sin(t.bob)*2;
-
-    const x = t.x;
-    const y = t.y + bob;
+    const x = 70, y = H-250;
 
     const helm = KIT.helm, red = KIT.jersey, pants = KIT.pants, blue = KIT.accent, skin = KIT.skin;
 
     // shadow
-    ctx.globalAlpha = 0.18;
+    ctx.globalAlpha = 0.20;
     ctx.fillStyle = "#0b0f1b";
-    ctx.fillRect(x+10, y + t.h + 6, t.w - 20, 10);
+    ctx.fillRect(x+26, H-62, 170, 16);
     ctx.globalAlpha = 1;
 
     // legs
     ctx.fillStyle = pants;
-    ctx.fillRect(x+18, y+46, 14, 34);
-    ctx.fillRect(x+36, y+46, 14, 34);
+    ctx.fillRect(x+52, y+148, 26, 64);
+    ctx.fillRect(x+88, y+148, 26, 64);
+
+    // pant stripe
     ctx.fillStyle = blue;
-    ctx.fillRect(x+33, y+46, 4, 34);
+    ctx.fillRect(x+82, y+148, 6, 64);
 
     // shoes
     ctx.fillStyle = "#0a0a0a";
-    ctx.fillRect(x+16, y+76, 18, 10);
-    ctx.fillRect(x+34, y+76, 18, 10);
+    ctx.fillRect(x+48, y+202, 34, 14);
+    ctx.fillRect(x+84, y+202, 34, 14);
 
     // torso
     ctx.fillStyle = red;
-    ctx.fillRect(x+14, y+20, 40, 32);
+    ctx.fillRect(x+44, y+90, 104, 66);
+
+    // shoulder pads
     ctx.fillStyle = blue;
-    ctx.fillRect(x+14, y+20, 7, 8);
-    ctx.fillRect(x+47, y+20, 7, 8);
+    ctx.fillRect(x+44, y+90, 18, 14);
+    ctx.fillRect(x+130, y+90, 18, 14);
 
-    // arms
+    // neck
     ctx.fillStyle = skin;
-    ctx.fillRect(x+8,  y+26, 8, 18);
-    ctx.fillRect(x+52, y+26, 8, 18);
+    ctx.fillRect(x+92, y+80, 14, 12);
 
-    // helmet + face
+    // head/helmet positioned normally on neck
     ctx.fillStyle = helm;
-    ctx.fillRect(x+36, y+2, 26, 20);
+    ctx.fillRect(x+96, y+42, 60, 44);
+
+    // face opening
     ctx.fillStyle = skin;
-    ctx.fillRect(x+48, y+10, 10, 8);
+    ctx.fillRect(x+128, y+58, 22, 18);
+
+    // facemask
+    ctx.globalAlpha = 0.70;
+    ctx.fillStyle = "#d7e6ff";
+    ctx.fillRect(x+122, y+70, 28, 4);
+    ctx.fillRect(x+150, y+52, 4, 30);
+    ctx.globalAlpha = 1;
+
+    // arms: throw-ready
+    ctx.fillStyle = skin;
+    // back arm
+    ctx.fillRect(x+46, y+104, 22, 18);
+    // throwing arm extended
+    ctx.fillRect(x+132, y+104, 46, 16);
+
+    // gloves
+    ctx.fillStyle = "#e8eef7";
+    ctx.fillRect(x+170, y+104, 10, 16);
+
+    // ball near hand (QB holding it)
+    ctx.fillStyle = "#8b4c22";
+    ctx.fillRect(x+182, y+104, 18, 14);
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.65;
+    ctx.fillRect(x+190, y+104, 3, 14);
+    ctx.globalAlpha = 1;
+
+    // back nameplate + number 8 (cleaner)
+    ctx.globalAlpha = 0.88;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x+64, y+100, 74, 14);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = red;
+    ctx.font = "9px sans-serif";
+    ctx.fillText("LIVINGSTON", x+67, y+110);
+
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(x+92, y+118, 22, 30);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = red;
+    ctx.fillRect(x+96, y+122, 14, 5);
+    ctx.fillRect(x+96, y+130, 14, 5);
+    ctx.fillRect(x+96, y+138, 14, 5);
+  }
+
+  // ---- Receiver sprite (normal head position, more human) ----
+  function drawReceiver(t, dt) {
+    t.bob += dt*4.9;
+    const bob = Math.sin(t.bob)*2;
+
+    const x = t.x, y = t.y + bob;
+    const helm = KIT.helm, red = KIT.jersey, pants = KIT.pants, blue = KIT.accent, skin = KIT.skin;
+
+    // shadow
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = "#0b0f1b";
+    ctx.fillRect(x+12, y + t.h + 8, t.w - 24, 10);
+    ctx.globalAlpha = 1;
+
+    // legs
+    ctx.fillStyle = pants;
+    ctx.fillRect(x+18, y+54, 16, 38);
+    ctx.fillRect(x+38, y+54, 16, 38);
+    ctx.fillStyle = blue;
+    ctx.fillRect(x+35, y+54, 4, 38);
+
+    // shoes
+    ctx.fillStyle = "#0a0a0a";
+    ctx.fillRect(x+16, y+86, 22, 10);
+    ctx.fillRect(x+36, y+86, 22, 10);
+
+    // torso
+    ctx.fillStyle = red;
+    ctx.fillRect(x+14, y+26, 48, 34);
+    ctx.fillStyle = blue;
+    ctx.fillRect(x+14, y+26, 8, 10);
+    ctx.fillRect(x+54, y+26, 8, 10);
+
+    // neck
+    ctx.fillStyle = skin;
+    ctx.fillRect(x+40, y+18, 10, 10);
+
+    // helmet (on neck, not floating)
+    ctx.fillStyle = helm;
+    ctx.fillRect(x+38, y+0, 30, 24);
+
+    // face opening
+    ctx.fillStyle = skin;
+    ctx.fillRect(x+56, y+10, 10, 10);
 
     // facemask
     ctx.globalAlpha = 0.65;
     ctx.fillStyle = "#d7e6ff";
-    ctx.fillRect(x+44, y+14, 14, 3);
+    ctx.fillRect(x+50, y+16, 14, 3);
     ctx.globalAlpha = 1;
 
-    // target ring
-    ctx.globalAlpha = 0.18;
+    // arms
+    ctx.fillStyle = skin;
+    ctx.fillRect(x+8,  y+34, 8, 20);
+    ctx.fillRect(x+62, y+34, 8, 20);
+
+    // Perfect window rings (visual)
+    const cx = x + 34;
+    const cy = y + 44;
+    const p = clamp(t.ringT / t.ringLife, 0, 1);
+    const rNow = PERFECT_RADIUS_START + (PERFECT_RADIUS_END - PERFECT_RADIUS_START) * p;
+
+    // soft outer ring
+    ctx.globalAlpha = 0.16;
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(x+32, y+38, 32, 0, Math.PI*2);
+    ctx.arc(cx, cy, rNow + 10, 0, Math.PI*2);
     ctx.stroke();
     ctx.globalAlpha = 1;
 
-    // headshot zone (small orange square)
-    ctx.globalAlpha = 0.22;
+    // perfect ring (bright)
+    ctx.globalAlpha = 0.85;
+    ctx.strokeStyle = "#9ad1ff";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rNow, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // headshot marker
+    ctx.globalAlpha = 0.20;
     ctx.fillStyle = "#f08a1a";
-    ctx.fillRect(x+50, y+4, 10, 10);
+    ctx.fillRect(x+58, y+4, 10, 10);
     ctx.globalAlpha = 1;
   }
 
   function drawClock(t, dt) {
     t.bob += dt*4.6;
     const bob = Math.sin(t.bob)*2;
-
-    const x = t.x;
-    const y = t.y + bob;
+    const x = t.x, y = t.y + bob;
 
     // glow
-    ctx.globalAlpha = 0.18;
+    ctx.globalAlpha = 0.14;
     ctx.fillStyle = "#9ad1ff";
-    ctx.fillRect(x-6, y-6, t.w+12, t.h+12);
+    ctx.fillRect(x-8, y-8, t.w+16, t.h+16);
     ctx.globalAlpha = 1;
 
     // body
@@ -510,8 +557,8 @@
     ctx.strokeStyle = "#1f2c46";
     ctx.strokeRect(x, y, t.w, t.h);
 
-    // clock face
-    ctx.globalAlpha = 0.9;
+    // face
+    ctx.globalAlpha = 0.92;
     ctx.fillStyle = "#d7e6ff";
     ctx.fillRect(x+8, y+8, t.w-16, t.h-16);
     ctx.globalAlpha = 1;
@@ -520,35 +567,35 @@
     ctx.strokeStyle = "#0b1220";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(x + t.w/2, y + t.h/2);
-    ctx.lineTo(x + t.w/2, y + 14);
+    ctx.moveTo(x+t.w/2, y+t.h/2);
+    ctx.lineTo(x+t.w/2, y+14);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(x + t.w/2, y + t.h/2);
-    ctx.lineTo(x + t.w - 14, y + t.h/2);
+    ctx.moveTo(x+t.w/2, y+t.h/2);
+    ctx.lineTo(x+t.w-14, y+t.h/2);
     ctx.stroke();
 
     // +10 label
-    ctx.globalAlpha = 0.9;
+    ctx.globalAlpha = 0.95;
     ctx.fillStyle = "#f08a1a";
-    ctx.fillRect(x, y + t.h - 12, t.w, 12);
+    ctx.fillRect(x, y+t.h-12, t.w, 12);
     ctx.fillStyle = "#0b1220";
     ctx.font = "10px sans-serif";
-    ctx.fillText("+10", x + 12, y + t.h - 3);
+    ctx.fillText("+10", x+12, y+t.h-3);
     ctx.globalAlpha = 1;
 
     // ring
-    ctx.globalAlpha = 0.22;
+    ctx.globalAlpha = 0.28;
     ctx.strokeStyle = "#9ad1ff";
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.arc(x + t.w/2, y + t.h/2, 30, 0, Math.PI*2);
+    ctx.arc(x+t.w/2, y+t.h/2, 30, 0, Math.PI*2);
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
 
   function drawCrosshair() {
-    ctx.globalAlpha = 0.9;
+    ctx.globalAlpha = 0.90;
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -569,14 +616,15 @@
       ctx.globalAlpha = 1;
 
       ctx.fillStyle = "#ffffff";
-      ctx.font = "52px sans-serif";
-      ctx.fillText("Livingston’s Passing Lab", 60, 100);
+      ctx.font = "54px sans-serif";
+      ctx.fillText("Livingston’s Passing Lab", 60, 110);
 
-      ctx.globalAlpha = 0.82;
+      ctx.globalAlpha = 0.85;
       ctx.font = "18px sans-serif";
-      ctx.fillText("30 seconds. Fewer targets. Clean throws.", 60, 136);
-      ctx.fillText("Clock targets add +10s. Headshots score more.", 60, 162);
-      ctx.fillText("Click / Space to start • P to pause", 60, 196);
+      ctx.fillText("30 seconds. Fewer targets. Cooldown throws.", 60, 148);
+      ctx.fillText("Hit the shrinking ring for PERFECT throws (huge bonus).", 60, 176);
+      ctx.fillText("Clock targets add +10 seconds.", 60, 204);
+      ctx.fillText("Click / Space to start • P to pause", 60, 240);
       ctx.globalAlpha = 1;
     }
 
@@ -586,11 +634,11 @@
       ctx.fillRect(0,0,W,H);
       ctx.globalAlpha = 1;
       ctx.fillStyle = "#ffffff";
-      ctx.font = "48px sans-serif";
-      ctx.fillText("Paused", 60, 120);
+      ctx.font = "50px sans-serif";
+      ctx.fillText("Paused", 60, 130);
       ctx.globalAlpha = 0.85;
       ctx.font = "18px sans-serif";
-      ctx.fillText("Press P or Pause to resume.", 60, 154);
+      ctx.fillText("Press P or Pause to resume.", 60, 166);
       ctx.globalAlpha = 1;
     }
 
@@ -600,63 +648,159 @@
       ctx.fillRect(0,0,W,H);
       ctx.globalAlpha = 1;
       ctx.fillStyle = "#ffffff";
-      ctx.font = "48px sans-serif";
-      ctx.fillText("Time!", 60, 120);
+      ctx.font = "50px sans-serif";
+      ctx.fillText("Time!", 60, 130);
       ctx.globalAlpha = 0.85;
       ctx.font = "18px sans-serif";
-      ctx.fillText("Press Start to run it back.", 60, 154);
-      ctx.fillText("Pro tip: clock targets can extend your run.", 60, 180);
+      ctx.fillText("Press Start to run it back.", 60, 166);
+      ctx.fillText("Perfect windows + clocks = huge scores.", 60, 194);
       ctx.globalAlpha = 1;
     }
   }
 
-  // Throw logic w/ cooldown
-  function canThrow() {
-    return cdT <= 0;
+  // ---- Ball trail + impact effects ----
+  function addTrail(x0,y0,x1,y1) {
+    trails.push({ x0,y0,x1,y1, t: 0, life: 0.18 });
+  }
+  function addImpact(x,y, kind) {
+    impacts.push({ x,y, t: 0, life: 0.22, kind }); // kind: "hit"|"miss"|"perfect"|"clock"
+  }
+  function addFloat(x,y, text, color) {
+    floatText.push({ x,y, text, color, t: 0, life: 0.8 });
   }
 
-  function startCooldown() {
-    cdT = COOLDOWN;
+  function drawTrails(dt) {
+    for (let i = trails.length-1; i>=0; i--) {
+      const tr = trails[i];
+      tr.t += dt;
+      const p = tr.t / tr.life;
+      if (p >= 1) { trails.splice(i,1); continue; }
+
+      ctx.globalAlpha = (1 - p) * 0.75;
+      ctx.strokeStyle = "#d7e6ff";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(tr.x0, tr.y0);
+      ctx.lineTo(tr.x1, tr.y1);
+      ctx.stroke();
+
+      ctx.globalAlpha = (1 - p) * 0.35;
+      ctx.strokeStyle = "#9ad1ff";
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      ctx.moveTo(tr.x0, tr.y0);
+      ctx.lineTo(tr.x1, tr.y1);
+      ctx.stroke();
+
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawImpacts(dt) {
+    for (let i=impacts.length-1; i>=0; i--){
+      const im = impacts[i];
+      im.t += dt;
+      const p = im.t / im.life;
+      if (p >= 1) { impacts.splice(i,1); continue; }
+
+      const r = 8 + p * 28;
+      let col = "#ffffff";
+      if (im.kind === "miss") col = "#f08a1a";
+      if (im.kind === "hit") col = "#9ad1ff";
+      if (im.kind === "perfect") col = "#7cffd1";
+      if (im.kind === "clock") col = "#ffd447";
+
+      ctx.globalAlpha = (1 - p) * 0.70;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(im.x, im.y, r, 0, Math.PI*2);
+      ctx.stroke();
+
+      ctx.globalAlpha = (1 - p) * 0.18;
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.arc(im.x, im.y, r + 10, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawFloatText(dt) {
+    for (let i=floatText.length-1;i>=0;i--){
+      const f = floatText[i];
+      f.t += dt;
+      const p = f.t / f.life;
+      if (p >= 1) { floatText.splice(i,1); continue; }
+
+      ctx.globalAlpha = (1 - p) * 0.95;
+      ctx.fillStyle = f.color;
+      ctx.font = "18px sans-serif";
+      ctx.fillText(f.text, f.x, f.y - p * 34);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // ---- Throw logic (cooldown + perfect windows) ----
+  function canThrow() { return cdT <= 0; }
+  function startCooldown() { cdT = COOLDOWN; }
+
+  function receiverCenter(t) {
+    return { cx: t.x + 34, cy: t.y + 44 };
+  }
+
+  function ringRadiusNow(t) {
+    const p = clamp(t.ringT / t.ringLife, 0, 1);
+    return PERFECT_RADIUS_START + (PERFECT_RADIUS_END - PERFECT_RADIUS_START) * p;
   }
 
   function throwAt(x,y) {
     if (state === "menu") { start(); return; }
     if (state === "over") { start(); return; }
     if (state !== "play") return;
+    if (!canThrow()) return;
 
-    if (!canThrow()) {
-      // Optional: count as nothing (no miss), just ignore while cooling down
-      return;
-    }
     startCooldown();
 
-    // find hit target (topmost)
+    // Ball trail from QB hand to click point
+    const qbHandX = 70 + 200;  // approx hand position relative to QB
+    const qbHandY = H - 250 + 104;
+    addTrail(qbHandX, qbHandY, x, y);
+
+    // Find target hit (topmost)
     let hitIndex = -1;
     let headshot = false;
+    let perfect = false;
 
     for (let i = targets.length - 1; i >= 0; i--) {
       const t = targets[i];
 
       if (t.type === "clock") {
-        const bx = t.x, by = t.y;
-        if (x >= bx && x <= bx+t.w && y >= by && y <= by+t.h) {
+        if (x >= t.x && x <= t.x+t.w && y >= t.y && y <= t.y+t.h) {
           hitIndex = i;
-          headshot = false;
           break;
         }
         continue;
       }
 
-      // receiver hitbox
-      const bx = t.x + 10, by = t.y + 10;
-      const bw = t.w - 20, bh = t.h - 14;
+      // receiver body hitbox
+      const bx = t.x + 10, by = t.y + 12;
+      const bw = t.w - 20, bh = t.h - 16;
 
-      // head zone (top-right of helmet area)
-      const hx = t.x + 50, hy = t.y + 4, hw = 12, hh = 12;
+      // headshot zone
+      const hx = t.x + 58, hy = t.y + 4, hw = 10, hh = 10;
 
       if (x >= bx && x <= bx+bw && y >= by && y <= by+bh) {
         hitIndex = i;
         headshot = (x >= hx && x <= hx+hw && y >= hy && y <= hy+hh);
+
+        // Perfect window: click near ring radius at receiver center
+        const { cx, cy } = receiverCenter(t);
+        const dist = Math.hypot(x - cx, y - cy);
+        const rNow = ringRadiusNow(t);
+        perfect = Math.abs(dist - rNow) <= PERFECT_THRESHOLD;
+
         break;
       }
     }
@@ -666,26 +810,42 @@
 
       if (t.type === "clock") {
         timeLeft = clamp(timeLeft + TIME_BONUS, 0, TIME_CAP);
-        // reward a little score too
-        score += 15;
-        streak += 1;
+        score += 18;
         hits += 1;
+        streak += 1;
+
         targets.splice(hitIndex, 1);
+
+        addImpact(x,y,"clock");
+        addFloat(x+10, y-8, "+10s", "#ffd447");
+        addFloat(x+10, y+14, "+18", "#d7e6ff");
         syncUI();
         return;
       }
 
+      // points
       const basePts = 12;
       const streakBonus = Math.min(36, streak * 2);
       const headBonus = headshot ? 16 : 0;
-      score += basePts + streakBonus + headBonus;
+      const perfectBonus = perfect ? 22 : 0;
 
+      const pts = basePts + streakBonus + headBonus + perfectBonus;
+      score += pts;
       hits += 1;
       streak += 1;
+
+      // remove
+      const { cx, cy } = receiverCenter(t);
       targets.splice(hitIndex, 1);
+
+      addImpact(cx, cy, perfect ? "perfect" : "hit");
+      addFloat(cx+12, cy, (perfect ? "PERFECT +" : "+") + pts, perfect ? "#7cffd1" : "#9ad1ff");
+
     } else {
       misses += 1;
       streak = 0;
+      addImpact(x,y,"miss");
+      addFloat(x+10, y, "MISS", "#f08a1a");
     }
 
     if (score > high) {
@@ -696,7 +856,7 @@
     syncUI();
   }
 
-  // Aim
+  // ---- Input ----
   canvas.addEventListener("mousemove", (e) => {
     const r = canvas.getBoundingClientRect();
     aimX = (e.clientX - r.left) * (W / r.width);
@@ -727,28 +887,26 @@
     try { await navigator.clipboard.writeText(text); alert("Copied to clipboard!"); } catch { alert(text); }
   });
 
-  // Update loop
+  // ---- Update / Render ----
   function update(dt){
     if (state !== "play") return;
 
-    // cooldown tick
+    // cooldown
     if (cdT > 0) cdT = Math.max(0, cdT - dt);
 
+    // time
     timeLeft -= dt;
     if (timeLeft <= 0) { timeLeft = 0; gameOver(); return; }
 
-    // difficulty ramps gently (but still “less targets”)
+    // spawn pacing (still "less targets")
     const progress = 1 - (timeLeft / START_TIME);
-    spawnEvery = clamp(SPAWN_BASE - progress * 0.25, SPAWN_MIN, SPAWN_BASE);
+    spawnEvery = clamp(SPAWN_BASE - progress * 0.22, SPAWN_MIN, SPAWN_BASE);
 
-    // spawn (but cap total targets)
     spawnT += dt;
     if (spawnT >= spawnEvery) {
       spawnT = 0;
 
       if (targets.length < MAX_TARGETS) {
-        // small chance for clock target (rare + valuable)
-        // increase chance slightly when time is low
         const clockChance = timeLeft <= 10 ? 0.22 : 0.12;
         if (Math.random() < clockChance) spawnClock();
         else spawnReceiver();
@@ -760,18 +918,19 @@
       const t = targets[i];
       t.x += t.dir * t.spd * dt;
 
-      // if receiver leaves screen: counts as miss (and breaks streak)
-      if (t.x < -140 || t.x > W + 140) {
-        targets.splice(i, 1);
+      if (t.type === "receiver") {
+        // ring timer
+        t.ringT += dt;
+        // after ring life, it keeps shrinking "past" perfect; still hittable, just harder
+      }
 
-        // Clock leaving shouldn't punish as harshly
-        if (t.type === "receiver") {
-          misses += 1;
-          streak = 0;
-        }
+      if (t.x < -180 || t.x > W + 180) {
+        targets.splice(i, 1);
+        if (t.type === "receiver") { misses += 1; streak = 0; }
       }
     }
 
+    // effects timers are advanced in draw funcs, but we can prune here if needed (not necessary)
     syncUI();
   }
 
@@ -785,18 +944,21 @@
       else drawClock(t, dt);
     }
 
+    // effects (on top)
+    drawTrails(dt);
+    drawImpacts(dt);
+    drawFloatText(dt);
+
     drawCrosshair();
     drawOverlay();
   }
 
-  // Main loop
   function loop(now){
     const dt = Math.min(0.033, (now - tPrev)/1000);
     tPrev = now;
 
     if (state !== "pause") update(dt);
     render(dt);
-
     requestAnimationFrame(loop);
   }
 
