@@ -8,7 +8,8 @@
   <style>
     .row { display:grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     @media (max-width: 900px){ .row { grid-template-columns: 1fr; } }
-    label { display:block; font-weight: 800; margin: 10px 0 6px; }
+
+    label { display:block; font-weight: 900; margin: 10px 0 6px; }
     input, select {
       width:100%;
       padding:10px;
@@ -28,6 +29,8 @@
       font-weight:900;
     }
     button:hover{ border-color: var(--link); }
+
+    .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; }
     .result{
       margin-top:14px;
       padding:14px;
@@ -35,9 +38,18 @@
       border:1px solid var(--border);
       background:#0b1220;
     }
-    .pill{ display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--border); color:var(--muted); font-size:12px; margin-right:6px; margin-top:6px;}
+    .pill{
+      display:inline-block;
+      padding:2px 8px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      color:var(--muted);
+      font-size:12px;
+      margin-right:6px;
+      margin-top:6px;
+    }
     .small{ font-size:12px; color:var(--muted); }
-    .mutedlink a { color: var(--link); }
+    .ok{ color: var(--link); font-weight: 900; }
   </style>
 </head>
 
@@ -56,16 +68,16 @@
   <main class="wrap">
     <div class="card">
       <h2>Which WFL Team Should You Support?</h2>
-      <p class="muted">Answer a few quick vibe questions and we’ll match you to a team.</p>
+      <p class="muted">Answer a few quick questions. We’ll match you to a team and tell you why.</p>
 
       <div class="row">
         <div>
           <label for="nflTeam">Your favorite NFL team</label>
           <input id="nflTeam" placeholder="Example: Broncos, Cowboys, Chiefs..." />
-          <div class="small">Tip: spelling doesn’t need to be perfect.</div>
+          <p class="small">Spelling doesn’t have to be perfect.</p>
 
-          <label for="location">Where do you live? (state/country)</label>
-          <input id="location" placeholder="Example: Colorado / USA / Mexico / UK..." />
+          <label for="location">Where do you live? (state/country/city)</label>
+          <input id="location" placeholder="Example: Texas / USA / Mexico / UK / Germany..." />
 
           <label for="character">Pick a character type</label>
           <select id="character">
@@ -99,205 +111,321 @@
             <option value="respect">Old-school respect</option>
           </select>
 
-          <label>&nbsp;</label>
-          <button id="btn">Find my team →</button>
-          <button id="btnReset" style="margin-left:8px;">Reset</button>
+          <div class="actions">
+            <button type="button" id="btn">Find my team →</button>
+            <button type="button" id="btnRandom">Random team</button>
+            <button type="button" id="btnReset">Reset</button>
+          </div>
 
           <div id="out" class="result" style="display:none;"></div>
+          <p class="small">Tip: after you get a result, you can save/share it.</p>
         </div>
       </div>
+    </div>
 
-      <p class="small mutedlink">
-        Want this to feel more accurate? Edit the team list & tags in the code (look for <strong>CONFIG</strong>).
+    <div class="card">
+      <h2>How accurate is this?</h2>
+      <p class="muted">
+        This quiz uses your answers + light “team archetype” tags + location matching.
+        If you want, we can later tune each team’s tags to match your canon lore perfectly.
       </p>
     </div>
   </main>
 
 <script>
 /* =========================
-   CONFIG — EDIT THIS PART
+   WFL TEAMS (40) + TAGS
    =========================
-   Add your real WFL teams here. Give each team some tags that describe them.
-   The quiz matches tags to answers.
+   Tags used by the quiz:
+   style: explosive / defense / balanced / chaos / grind / clutch
+   vibe:  glory / heartbreak / rebuild / dynasty / memes / respect
+   character influence: underdog / villain / hero / chaos / genius / loyal
 */
 const WFL_TEAMS = [
-  { name: "New Jerusalem", tags: ["balanced","glory","underdog"], blurb:"Smart, composed, and built for big moments." },
-  { name: "Jerusalem", tags: ["defense","respect","clutch"], blurb:"Tough identity, disciplined style, and lives for tight finishes." },
-  { name: "Stockholm", tags: ["balanced","respect","dynasty"], blurb:"Clean football, steady control, and high expectations." },
-  { name: "Springfield", tags: ["chaos","memes","underdog"], blurb:"Unpredictable energy. Anything can happen, for better or worse." },
-  { name: "San Fransisco", tags: ["explosive","dynasty","glory"], blurb:"Win-now vibes with fireworks on offense." },
-  { name: "Tombstone", tags: ["grind","respect","villain"], blurb:"Physical, stubborn, and not here to be liked." },
-  { name: "Wallerock", tags: ["clutch","heartbreak","underdog"], blurb:"Drama magnet. If you love close games, you’ll suffer happily." },
-  { name: "Dallas", tags: ["explosive","memes","chaos"], blurb:"High-octane and stressful. You don’t want calm—you want highlights." },
-  { name: "Phoenix", tags: ["balanced","rebuild","underdog"], blurb:"A rise-from-ashes vibe—patient fans get paid off." },
-  { name: "Houston", tags: ["grind","glory","respect"], blurb:"Old-school strength with a desire to prove something." },
+  { name: "New Jerusalem", tags: ["balanced","glory","respect","hero"], blurb: "Big-stage energy with a serious, composed identity." },
+  { name: "Jerusalem", tags: ["defense","respect","clutch","loyal"], blurb: "Built on grit and discipline—lives for tense finishes." },
+  { name: "Stockholm", tags: ["balanced","respect","dynasty","genius"], blurb: "Clean football, steady control, high standards." },
+  { name: "Springfield", tags: ["chaos","memes","underdog","chaos"], blurb: "Unpredictable and loud—anything can happen." },
+  { name: "San Francisco", tags: ["explosive","dynasty","glory","hero"], blurb: "Win-now confidence with fireworks potential." },
+  { name: "Tombstone", tags: ["grind","respect","villain","defense"], blurb: "Physical, stubborn, and proud of it." },
+  { name: "Wallerock", tags: ["clutch","heartbreak","underdog","loyal"], blurb: "Drama magnet—close games and emotional swings." },
+  { name: "Dallas", tags: ["explosive","memes","chaos","glory"], blurb: "High-octane chaos—highlights, stress, and momentum swings." },
+  { name: "Phoenix", tags: ["balanced","rebuild","underdog","hero"], blurb: "Rise-from-ashes vibes—patient fans get payoff." },
+  { name: "Houston", tags: ["grind","respect","balanced","loyal"], blurb: "Old-school toughness with something to prove." },
 
-  { name: "Tampa", tags: ["clutch","glory","balanced"], blurb:"Big swings, big endings—always a late-game story." },
-  { name: "Los Angeles", tags: ["explosive","glory","villain"], blurb:"Flash, confidence, and headline energy." },
-  { name: "Boise", tags: ["defense","rebuild","underdog"], blurb:"Hard-nosed and climbing—built to frustrate favorites." },
-  { name: "Denver", tags: ["balanced","heartbreak","clutch"], blurb:"Good enough to win, chaotic enough to hurt you." },
-  { name: "Miami", tags: ["explosive","memes","glory"], blurb:"Speed, swagger, and streaky momentum." },
-  { name: "Helsinki", tags: ["defense","respect","balanced"], blurb:"Cold-blooded discipline. They don’t beat themselves." },
-  { name: "Warsaw", tags: ["grind","respect","underdog"], blurb:"Grit first. If you like physical football, this is your home." },
-  { name: "Zurich", tags: ["balanced","dynasty","respect"], blurb:"Efficient, controlled, and allergic to sloppy play." },
-  { name: "Berlin", tags: ["defense","clutch","glory"], blurb:"Survival specialists—always alive late." },
-  { name: "Oslo", tags: ["grind","heartbreak","underdog"], blurb:"Tough roads, tough wins, tough losses—never boring." },
+  { name: "Tampa", tags: ["clutch","glory","balanced","hero"], blurb: "Big endings and spotlight moments." },
+  { name: "Los Angeles", tags: ["explosive","glory","villain","memes"], blurb: "Flash, confidence, and headline energy." },
+  { name: "Boise", tags: ["defense","rebuild","underdog","respect"], blurb: "Hard-nosed climb—built to frustrate favorites." },
+  { name: "Denver", tags: ["balanced","heartbreak","clutch","loyal"], blurb: "Good enough to win, chaotic enough to hurt you." },
+  { name: "Miami", tags: ["explosive","memes","glory","hero"], blurb: "Speed, swagger, streaks—never boring." },
+  { name: "Helsinki", tags: ["defense","respect","balanced","genius"], blurb: "Disciplined and cold-blooded—doesn’t beat itself." },
+  { name: "Warsaw", tags: ["grind","respect","underdog","loyal"], blurb: "Grit first—physical football people." },
+  { name: "Zurich", tags: ["balanced","dynasty","respect","genius"], blurb: "Efficient and controlled—hates sloppy play." },
+  { name: "Berlin", tags: ["defense","clutch","glory","respect"], blurb: "Survival specialists—always alive late." },
+  { name: "Oslo", tags: ["grind","heartbreak","underdog","loyal"], blurb: "Tough roads, tough wins—never painless." },
 
-  { name: "Sarajevo", tags: ["chaos","rebuild","underdog"], blurb:"Wild swings and weird outcomes—the chaos fans’ choice." },
-  { name: "Atlanta", tags: ["explosive","glory","balanced"], blurb:"Big plays and big expectations—built to entertain." },
-  { name: "New England", tags: ["balanced","dynasty","villain"], blurb:"Clinical and confident—people will call them overrated until they win again." },
-  { name: "Seattle", tags: ["defense","glory","clutch"], blurb:"Hard defense with a knack for turning games in one moment." },
-  { name: "Liverpool", tags: ["clutch","memes","heartbreak"], blurb:"Late drama, loud opinions, and emotional whiplash." },
-  { name: "Saint Catherine", tags: ["heartbreak","rebuild","underdog"], blurb:"The loyal fan’s team—hope, pain, and eventual payoff." },
-  { name: "Malmo", tags: ["balanced","respect","underdog"], blurb:"Underrated and steady—quietly dangerous when ignored." },
-  { name: "Lisbon", tags: ["explosive","rebuild","chaos"], blurb:"High ceiling, high variance—boom or bust every week." },
-  { name: "Madrid", tags: ["balanced","glory","clutch"], blurb:"Big-stage energy—built for spotlight games." },
-  { name: "Nicosia", tags: ["defense","villain","respect"], blurb:"Mean defense and a chip on the shoulder—easy to hate, hard to beat." },
+  { name: "Sarajevo", tags: ["chaos","rebuild","underdog","memes"], blurb: "Wild outcomes—chaos fans welcome." },
+  { name: "Atlanta", tags: ["explosive","glory","balanced","hero"], blurb: "Big plays, big expectations, built to entertain." },
+  { name: "New England", tags: ["balanced","dynasty","villain","genius"], blurb: "Clinical and confident—people argue about them constantly." },
+  { name: "Seattle", tags: ["defense","clutch","glory","respect"], blurb: "Defense with a knack for game-flipping moments." },
+  { name: "Liverpool", tags: ["clutch","memes","heartbreak","loyal"], blurb: "Late drama, loud opinions, emotional whiplash." },
+  { name: "Saint Catherine", tags: ["heartbreak","rebuild","underdog","loyal"], blurb: "The loyal fan’s team—hope, pain, eventual payoff." },
+  { name: "Malmo", tags: ["balanced","respect","underdog","genius"], blurb: "Underrated and steady—quietly dangerous." },
+  { name: "Lisbon", tags: ["explosive","rebuild","chaos","memes"], blurb: "High ceiling, high variance—boom or bust." },
+  { name: "Madrid", tags: ["balanced","glory","clutch","hero"], blurb: "Big-stage energy—made for spotlight games." },
+  { name: "Nicosia", tags: ["defense","villain","respect","grind"], blurb: "Mean defense and a chip on the shoulder." },
 
-  { name: "New Jerusalem City", tags: ["chaos","memes","glory"], blurb:"Pure spectacle—if you want headlines, this is it." },
-  { name: "Paris", tags: ["balanced","glory","dynasty"], blurb:"Elegant, confident, and expects to be in the conversation." },
-  { name: "Cork", tags: ["grind","underdog","rebuild"], blurb:"Scrappy, stubborn, and always fighting uphill." },
-  { name: "Dublin", tags: ["clutch","respect","heartbreak"], blurb:"Tight games and high emotion—wins feel earned, losses feel personal." },
-  { name: "New York", tags: ["explosive","villain","glory"], blurb:"Big-city swagger—built to be talked about." },
-  { name: "Arusha", tags: ["balanced","rebuild","underdog"], blurb:"Patient growth, steady identity, and a surprise-run ceiling." },
-  { name: "Medina", tags: ["defense","respect","glory"], blurb:"Structured and serious—wins are statements." },
-  { name: "Lyon", tags: ["balanced","memes","clutch"], blurb:"A rollercoaster team—never the same twice." },
-  { name: "Palermo", tags: ["grind","villain","clutch"], blurb:"Physical, nasty, and built for ugly wins." },
-  { name: "Kiev", tags: ["defense","underdog","heartbreak"], blurb:"Hard defense and harder luck—fans who stick get rewarded." }
-];
-
-/* Optional: small NFL “vibe” hints (you can add more later) */
-const NFL_HINTS = [
-  { match: ["cowboys","dallas"], tagBoost: { "Dallas": 2 } },
-  { match: ["broncos","denver"], tagBoost: { "Denver": 1, "Boise": 1 } },
-  { match: ["seahawks","seattle"], tagBoost: { "Seattle": 2 } },
-  { match: ["patriots","new england"], tagBoost: { "New England": 2 } },
-  { match: ["giants","jets","new york"], tagBoost: { "New York": 2 } },
-  { match: ["dolphins","miami"], tagBoost: { "Miami": 2 } }
-];
-
-/* Optional: location hints (very light) */
-const LOCATION_HINTS = [
-  { match: ["texas","tx"], tagBoost: { "Dallas": 1, "Houston": 1 } },
-  { match: ["sweden"], tagBoost: { "Stockholm": 1, "Malmo": 1 } },
-  { match: ["finland"], tagBoost: { "Helsinki": 1 } },
-  { match: ["germany"], tagBoost: { "Berlin": 1 } },
-  { match: ["spain"], tagBoost: { "Madrid": 1 } },
-  { match: ["portugal"], tagBoost: { "Lisbon": 1 } },
-  { match: ["ireland"], tagBoost: { "Dublin": 1, "Cork": 1 } },
-  { match: ["switzerland"], tagBoost: { "Zurich": 1 } },
-  { match: ["ukraine"], tagBoost: { "Kiev": 1 } }
-];
-
-// Optional: small NFL “vibe” hints (you can add more)
-const NFL_HINTS = [
-  { match: ["cowboys","dallas"], tagBoost: { "Dallas": 2 } },
-  { match: ["broncos","denver"], tagBoost: { "Berlin": 1, "Saint Catherine": 1 } },
-  { match: ["chiefs","kansas"], tagBoost: { "San Francisco": 2 } }
-];
-
-// Optional: location hints (very light)
-const LOCATION_HINTS = [
-  { match: ["texas","tx"], tagBoost: { "Dallas": 1 } },
-  { match: ["germany","berlin"], tagBoost: { "Berlin": 1 } },
+  { name: "New Jerusalem City", tags: ["chaos","memes","glory","villain"], blurb: "Pure spectacle—headlines and unpredictability." },
+  { name: "Paris", tags: ["balanced","glory","dynasty","genius"], blurb: "Elegant confidence—expects to matter." },
+  { name: "Cork", tags: ["grind","underdog","rebuild","loyal"], blurb: "Scrappy, stubborn, always fighting uphill." },
+  { name: "Dublin", tags: ["clutch","respect","heartbreak","loyal"], blurb: "Tight games and high emotion—wins feel earned." },
+  { name: "New York", tags: ["explosive","villain","glory","memes"], blurb: "Big-city swagger—built to be talked about." },
+  { name: "Arusha", tags: ["balanced","rebuild","underdog","hero"], blurb: "Patient growth with surprise-run potential." },
+  { name: "Medina", tags: ["defense","respect","glory","genius"], blurb: "Structured and serious—wins are statements." },
+  { name: "Lyon", tags: ["balanced","memes","clutch","chaos"], blurb: "Rollercoaster vibes—never the same twice." },
+  { name: "Palermo", tags: ["grind","villain","clutch","defense"], blurb: "Built for ugly wins and late pressure." },
+  { name: "Kiev", tags: ["defense","underdog","heartbreak","respect"], blurb: "Hard defense, hard luck—loyalty required." }
 ];
 
 /* =========================
-   QUIZ LOGIC
+   LOCATION MATCHING
+   (very helpful for international fans)
    ========================= */
+const LOCATION_HINTS = [
+  // US
+  { keys: ["texas","tx"], boosts: { "Dallas": 3, "Houston": 3 } },
+  { keys: ["california","ca","san francisco","sf"], boosts: { "San Francisco": 3, "Los Angeles": 2 } },
+  { keys: ["los angeles","la","calif"], boosts: { "Los Angeles": 3 } },
+  { keys: ["florida","fl","tampa","miami"], boosts: { "Tampa": 3, "Miami": 3 } },
+  { keys: ["arizona","az","phoenix"], boosts: { "Phoenix": 3 } },
+  { keys: ["colorado","co","denver"], boosts: { "Denver": 3 } },
+  { keys: ["idaho","boise"], boosts: { "Boise": 3 } },
+  { keys: ["georgia","atlanta"], boosts: { "Atlanta": 3 } },
+  { keys: ["washington","wa","seattle"], boosts: { "Seattle": 3 } },
+  { keys: ["new york","ny"], boosts: { "New York": 3 } },
+  { keys: ["new england","massachusetts","ma","boston"], boosts: { "New England": 3 } },
+
+  // Europe / Middle East / Africa
+  { keys: ["germany","berlin"], boosts: { "Berlin": 4 } },
+  { keys: ["sweden","stockholm"], boosts: { "Stockholm": 4 } },
+  { keys: ["malmo"], boosts: { "Malmo": 4 } },
+  { keys: ["finland","helsinki"], boosts: { "Helsinki": 4 } },
+  { keys: ["norway","oslo"], boosts: { "Oslo": 4 } },
+  { keys: ["poland","warsaw"], boosts: { "Warsaw": 4 } },
+  { keys: ["switzerland","zurich"], boosts: { "Zurich": 4 } },
+  { keys: ["bosnia","sarajevo"], boosts: { "Sarajevo": 4 } },
+  { keys: ["portugal","lisbon"], boosts: { "Lisbon": 4 } },
+  { keys: ["spain","madrid"], boosts: { "Madrid": 4 } },
+  { keys: ["france","paris"], boosts: { "Paris": 4, "Lyon": 3 } },
+  { keys: ["lyon"], boosts: { "Lyon": 4 } },
+  { keys: ["italy","sicily","palermo"], boosts: { "Palermo": 4 } },
+  { keys: ["ukraine","kiev","kyiv"], boosts: { "Kiev": 4 } },
+  { keys: ["ireland","dublin"], boosts: { "Dublin": 4, "Cork": 3 } },
+  { keys: ["cork"], boosts: { "Cork": 4 } },
+  { keys: ["liverpool","england","uk","united kingdom"], boosts: { "Liverpool": 4 } },
+  { keys: ["cyprus","nicosia"], boosts: { "Nicosia": 4 } },
+  { keys: ["israel","jerusalem"], boosts: { "Jerusalem": 4, "New Jerusalem": 3, "New Jerusalem City": 2 } },
+  { keys: ["medina","saudi","arabia"], boosts: { "Medina": 4 } },
+  { keys: ["tanzania","arusha"], boosts: { "Arusha": 4 } }
+];
+
+/* =========================
+   NFL VIBE HINTS
+   (light nudge; doesn’t override quiz)
+   ========================= */
+const NFL_HINTS = [
+  { keys: ["cowboys","dallas"], boosts: { "Dallas": 3 } },
+  { keys: ["texans","houston"], boosts: { "Houston": 3 } },
+  { keys: ["49ers","niners","san francisco"], boosts: { "San Francisco": 3 } },
+  { keys: ["rams","chargers","los angeles"], boosts: { "Los Angeles": 3 } },
+  { keys: ["broncos","denver"], boosts: { "Denver": 3 } },
+  { keys: ["dolphins","miami"], boosts: { "Miami": 3 } },
+  { keys: ["buccaneers","bucs","tampa"], boosts: { "Tampa": 3 } },
+  { keys: ["seahawks","seattle"], boosts: { "Seattle": 3 } },
+  { keys: ["patriots","new england"], boosts: { "New England": 3 } },
+  { keys: ["giants","jets","new york"], boosts: { "New York": 3 } }
+];
+
+/* =========================
+   QUIZ ENGINE
+   ========================= */
+const KEY_SAVED = "wfl_quiz_saved_team_v1";
 
 function norm(s){ return (s||"").toLowerCase().trim(); }
 
-function scoreTeams(answers){
-  const scores = Object.fromEntries(WFL_TEAMS.map(t => [t.name, 0]));
-  const reasons = Object.fromEntries(WFL_TEAMS.map(t => [t.name, []]));
-
-  function add(team, pts, why){
-    scores[team] = (scores[team]||0) + pts;
-    if (why) reasons[team].push(why);
-  }
-
-  // Tag matching
+function baseScores(){
+  const scores = {};
+  const reasons = {};
   for (const t of WFL_TEAMS){
-    for (const a of [answers.style, answers.vibe]){
-      if (t.tags.includes(a)){
-        add(t.name, 3, `Matches your ${a} vibe`);
-      }
-    }
-    // character influences
-    if (answers.character === "underdog" && t.tags.includes("underdog")) add(t.name, 2, "Underdog energy");
-    if (answers.character === "villain" && t.tags.includes("villain")) add(t.name, 2, "Villain energy");
-    if (answers.character === "chaos" && t.tags.includes("chaos")) add(t.name, 2, "Chaos lover");
-    if (answers.character === "genius" && t.tags.includes("balanced")) add(t.name, 1, "Tactician / smart style");
-    if (answers.character === "loyal" && (t.tags.includes("respect") || t.tags.includes("heartbreak"))) add(t.name, 1, "Loyalty fits this team");
+    scores[t.name] = 0;
+    reasons[t.name] = [];
   }
-
-  // NFL hints
-  const nfl = norm(answers.nflTeam);
-  for (const h of NFL_HINTS){
-    if (h.match.some(m => nfl.includes(m))){
-      for (const [team, pts] of Object.entries(h.tagBoost)){
-        add(team, pts, "NFL-team vibe match");
-      }
-    }
-  }
-
-  // Location hints
-  const loc = norm(answers.location);
-  for (const h of LOCATION_HINTS){
-    if (h.match.some(m => loc.includes(m))){
-      for (const [team, pts] of Object.entries(h.tagBoost)){
-        add(team, pts, "Location vibe nudge");
-      }
-    }
-  }
-
-  // Pick winner
-  const ranked = Object.entries(scores).sort((a,b)=> b[1]-a[1]);
-  return { ranked, reasons };
+  return { scores, reasons };
 }
 
-function renderResult(winner, winnerReasons){
+function add(scores, reasons, team, pts, why){
+  scores[team] = (scores[team] || 0) + pts;
+  if (why) reasons[team].push(why);
+}
+
+function applyHint(text, hintList, scores, reasons, label){
+  const t = norm(text);
+  if (!t) return;
+  for (const h of hintList){
+    if (h.keys.some(k => t.includes(k))){
+      for (const [team, pts] of Object.entries(h.boosts)){
+        add(scores, reasons, team, pts, label);
+      }
+    }
+  }
+}
+
+function scoreQuiz(ans){
+  const { scores, reasons } = baseScores();
+
+  // Main match: style + vibe
+  for (const team of WFL_TEAMS){
+    if (team.tags.includes(ans.style)) add(scores, reasons, team.name, 4, `Matches your play style: ${ans.style}`);
+    if (team.tags.includes(ans.vibe))  add(scores, reasons, team.name, 3, `Matches your vibe: ${ans.vibe}`);
+
+    // Character flavor
+    if (ans.character === "underdog" && team.tags.includes("underdog")) add(scores, reasons, team.name, 2, "Underdog energy");
+    if (ans.character === "villain"  && team.tags.includes("villain"))  add(scores, reasons, team.name, 2, "Villain energy");
+    if (ans.character === "hero"     && team.tags.includes("hero"))     add(scores, reasons, team.name, 2, "Hero energy");
+    if (ans.character === "chaos"    && team.tags.includes("chaos"))    add(scores, reasons, team.name, 2, "Chaos lover");
+    if (ans.character === "genius"   && team.tags.includes("genius"))   add(scores, reasons, team.name, 2, "Tactician vibe");
+    if (ans.character === "loyal"    && team.tags.includes("loyal"))    add(scores, reasons, team.name, 2, "Loyalty matches this team");
+  }
+
+  // Hints: location + NFL team
+  applyHint(ans.location, LOCATION_HINTS, scores, reasons, "Location match");
+  applyHint(ans.nflTeam, NFL_HINTS, scores, reasons, "NFL vibe match");
+
+  // Pick winner (stable tie-break: alphabetical)
+  const ranked = Object.entries(scores).sort((a,b)=>{
+    if (b[1] !== a[1]) return b[1]-a[1];
+    return a[0].localeCompare(b[0]);
+  });
+
+  return { winner: ranked[0][0], ranked, reasons };
+}
+
+function pillsForTeam(teamName){
+  const t = WFL_TEAMS.find(x => x.name === teamName);
+  const tags = (t?.tags || []).filter((v,i,a)=>a.indexOf(v)===i).slice(0,8);
+  return tags.map(x => `<span class="pill">${x}</span>`).join("");
+}
+
+function renderResult(winner, reasons){
   const team = WFL_TEAMS.find(t=>t.name===winner);
-  const pills = (team?.tags||[]).slice(0,6).map(tag => `<span class="pill">${tag}</span>`).join("");
-  const why = (winnerReasons[winner] || []).slice(0,5).map(r => `<li>${r}</li>`).join("");
+  const why = (reasons[winner] || []).slice(0,5).map(r => `<li>${r}</li>`).join("");
 
   return `
-    <h3 style="margin:0 0 6px 0;">Your team: <span style="color:var(--link)">${winner}</span></h3>
+    <h3 style="margin:0 0 8px 0;">Your team: <span class="ok">${winner}</span></h3>
     <p class="muted" style="margin:0 0 10px 0;">${team?.blurb || ""}</p>
-    <div>${pills}</div>
+    <div>${pillsForTeam(winner)}</div>
     <h4 style="margin:12px 0 6px 0;">Why this match?</h4>
     <ul style="margin:0; padding-left:18px;">${why || "<li>Pure vibes. And it felt right.</li>"}</ul>
+
+    <div class="actions" style="margin-top:14px;">
+      <button type="button" id="btnSave">Save my team</button>
+      <button type="button" id="btnShare">Share</button>
+      <button type="button" id="btnCopy">Copy text</button>
+    </div>
+
     <p class="small" style="margin-top:10px;">
-      Tip: If you want more accurate matches, add your real WFL teams + tags in the code.
+      Saved team (on this device): <span id="savedTeamLabel">${loadSavedTeam() || "none"}</span>
     </p>
   `;
 }
 
-document.getElementById("btn").addEventListener("click", () => {
-  const answers = {
+function loadSavedTeam(){
+  try { return localStorage.getItem(KEY_SAVED); } catch { return null; }
+}
+function saveTeam(name){
+  try { localStorage.setItem(KEY_SAVED, name); } catch {}
+}
+function copyText(text){
+  navigator.clipboard?.writeText(text).catch(()=>{});
+}
+
+function setupResultButtons(winner){
+  const saveBtn = document.getElementById("btnSave");
+  const shareBtn = document.getElementById("btnShare");
+  const copyBtn = document.getElementById("btnCopy");
+  const savedLabel = document.getElementById("savedTeamLabel");
+
+  const shareText = `I took the WFL Team Finder Quiz and got: ${winner} 🔥 https://thefutureworld2055-cyber.github.io/wfl-hub/quiz.html`;
+
+  saveBtn.onclick = () => {
+    saveTeam(winner);
+    if (savedLabel) savedLabel.textContent = winner;
+  };
+
+  copyBtn.onclick = () => copyText(shareText);
+
+  shareBtn.onclick = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "WFL Team Finder", text: shareText, url: "https://thefutureworld2055-cyber.github.io/wfl-hub/quiz.html" });
+      } catch {}
+    } else {
+      copyText(shareText);
+      alert("Sharing not supported here — copied to clipboard instead.");
+    }
+  };
+}
+
+function randomTeam(){
+  const idx = Math.floor(Math.random() * WFL_TEAMS.length);
+  return WFL_TEAMS[idx].name;
+}
+
+/* =========================
+   UI WIRING
+   ========================= */
+const elBtn = document.getElementById("btn");
+const elBtnRandom = document.getElementById("btnRandom");
+const elBtnReset = document.getElementById("btnReset");
+const out = document.getElementById("out");
+
+function getAnswers(){
+  return {
     nflTeam: document.getElementById("nflTeam").value,
     location: document.getElementById("location").value,
     character: document.getElementById("character").value,
     style: document.getElementById("style").value,
     vibe: document.getElementById("vibe").value
   };
+}
 
-  const { ranked, reasons } = scoreTeams(answers);
-  const winner = ranked[0]?.[0] || WFL_TEAMS[0].name;
-
-  const out = document.getElementById("out");
+function showWinner(winner, reasons){
   out.style.display = "block";
   out.innerHTML = renderResult(winner, reasons);
+  setupResultButtons(winner);
+}
+
+elBtn.addEventListener("click", () => {
+  const ans = getAnswers();
+  const { winner, reasons } = scoreQuiz(ans);
+  showWinner(winner, reasons);
 });
 
-document.getElementById("btnReset").addEventListener("click", () => {
+elBtnRandom.addEventListener("click", () => {
+  // Random team, but still show the same result UI
+  const winner = randomTeam();
+  const reasons = {};
+  for (const t of WFL_TEAMS) reasons[t.name] = [];
+  reasons[winner] = ["Random pick — because chaos is part of the WFL."];
+  showWinner(winner, reasons);
+});
+
+elBtnReset.addEventListener("click", () => {
   document.getElementById("nflTeam").value = "";
   document.getElementById("location").value = "";
   document.getElementById("character").value = "underdog";
   document.getElementById("style").value = "explosive";
   document.getElementById("vibe").value = "glory";
-  const out = document.getElementById("out");
   out.style.display = "none";
   out.innerHTML = "";
 });
