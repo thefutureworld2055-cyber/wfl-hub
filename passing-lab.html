@@ -54,12 +54,12 @@
       </div>
 
       <p class="hint">
-        Click receivers to complete passes. Hit the <strong>shrinking ring</strong> for Perfect throws (big bonus).
-        Clock targets add <strong>+10s</strong>. Cooldown stops spam.
+        Click receivers to complete passes. Hit the <strong>shrinking ring</strong> for PERFECT throws.
+        Clock targets add <strong>+10s</strong>. Cooldown prevents spam.
       </p>
 
-      <canvas id="c" width="980" height="520"></canvas>
-      <p class="hint">New: ball trail + impact flash, Perfect Window rings, upgraded sprites.</p>
+      <canvas id="c" width="980" height="540"></canvas>
+      <p class="hint">Cartoon/flat vector style + animated throwing arm.</p>
     </div>
   </main>
 
@@ -83,48 +83,73 @@
   const btnPause = document.getElementById("btnPause");
   const btnShare = document.getElementById("btnShare");
 
+  // Helpers
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const rand = (a,b)=>a+Math.random()*(b-a);
   const choice = (arr)=>arr[(Math.random()*arr.length)|0];
 
-  // ---- Kit (Livingston) ----
-  // Livingston is WHITE: updated skin tone.
+  function roundRect(x,y,w,h,r){
+    r = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+
+  function drawBadge(x,y,w,h,fill,stroke){
+    ctx.fillStyle = fill;
+    roundRect(x,y,w,h,12);
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  // Flat vector style constants
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+
+  // Colors / kit (Livingston is WHITE)
   const KIT = {
-    helm: "#0b2a56",     // dark blue helmet
-    jersey: "#b21f2d",   // red jersey
-    pants: "#e8eef7",    // white pants
-    accent: "#0b2a56",   // dark blue highlights
-    skin: "#d8b08a"      // lighter skin tone
+    helm: "#0b2a56",
+    jersey: "#b21f2d",
+    pants: "#f3f6fb",
+    accent: "#0b2a56",
+    skin: "#f0d2b6",    // white skin tone
+    outline: "#071022",
+    uiGlow: "#9ad1ff",
+    orange: "#f08a1a"
   };
 
-  // ---- Game constants ----
-  const START_TIME = 30;     // requested
-  const TIME_BONUS = 10;     // clock target +10s
-  const TIME_CAP = 60;       // max time w/ clocks
+  // Game constants
+  const START_TIME = 30;
+  const TIME_BONUS = 10;
+  const TIME_CAP = 60;
 
-  const MAX_TARGETS = 4;     // less targets
-  const SPAWN_BASE = 1.45;
-  const SPAWN_MIN  = 0.95;
+  const MAX_TARGETS = 4;     // fewer targets
+  const SPAWN_BASE = 1.55;
+  const SPAWN_MIN  = 1.05;
 
-  // Throw cooldown
-  const COOLDOWN = 0.42;
+  const COOLDOWN = 0.44;     // throw cooldown
 
-  // Perfect Window ring timing
-  const PERFECT_LIFE = 1.05;     // seconds for ring to shrink
-  const PERFECT_RADIUS_START = 34;
-  const PERFECT_RADIUS_END   = 10;
-  const PERFECT_THRESHOLD    = 3.5; // px tolerance for "perfect"
+  // Perfect window
+  const PERFECT_LIFE = 1.10;
+  const R_START = 36;
+  const R_END   = 12;
+  const PERFECT_THRESHOLD = 4.0;
 
-  // ---- State ----
+  // State
   let state = "menu"; // menu | play | pause | over
   let tPrev = performance.now();
 
-  let score = 0, hits = 0, misses = 0, streak = 0;
+  let score=0, hits=0, misses=0, streak=0;
   let timeLeft = START_TIME;
 
   let spawnT = 0;
   let spawnEvery = SPAWN_BASE;
-
   let cdT = 0;
 
   let high = Number(localStorage.getItem("passing_lab_high") || 0);
@@ -132,51 +157,54 @@
   // Aim
   let aimX = W/2, aimY = H/2;
 
-  // Targets: receiver | clock
-  const targets = [];
+  // Animated QB throw arm
+  let qbThrowT = 0; // seconds remaining (animation)
 
-  // Visual effects: ball trails + impact flashes + floating text
-  const trails = [];
-  const impacts = [];
-  const floatText = [];
+  // Entities
+  const targets = [];  // receiver | clock
+  const trails = [];   // ball trail lines
+  const impacts = [];  // impact pulses
+  const floatText = []; // "+points" etc
 
-  function reset() {
-    score = 0; hits = 0; misses = 0; streak = 0;
+  // Start screen button bounds (canvas)
+  const startBtn = { x: W/2 - 140, y: H/2 + 120, w: 280, h: 64 };
+
+  function resetRun(){
+    score=0; hits=0; misses=0; streak=0;
     timeLeft = START_TIME;
     spawnT = 0;
     spawnEvery = SPAWN_BASE;
     cdT = 0;
-
+    qbThrowT = 0;
     targets.length = 0;
     trails.length = 0;
     impacts.length = 0;
     floatText.length = 0;
-
     syncUI();
   }
 
-  function start() {
-    reset();
+  function start(){
+    resetRun();
     state = "play";
     syncUI();
   }
 
-  function gameOver() {
+  function gameOver(){
     state = "over";
-    if (score > high) {
+    if (score > high){
       high = score;
       localStorage.setItem("passing_lab_high", String(high));
     }
     syncUI();
   }
 
-  function togglePause() {
+  function togglePause(){
     if (state === "play") state = "pause";
     else if (state === "pause") state = "play";
     syncUI();
   }
 
-  function syncUI() {
+  function syncUI(){
     scoreEl.textContent = String(score);
     hitsEl.textContent = String(hits);
     missesEl.textContent = String(misses);
@@ -188,627 +216,117 @@
     const acc = attempts ? Math.round((hits/attempts)*100) : 0;
     accEl.textContent = acc + "%";
 
-    cdEl.textContent = cdT <= 0 ? "Ready" : (cdT).toFixed(2) + "s";
+    cdEl.textContent = cdT <= 0 ? "Ready" : cdT.toFixed(2) + "s";
   }
 
-  // ---- Spawning ----
-  function spawnReceiver() {
-    const laneY = choice([185, 230, 275, 320]);
-    const speed = rand(155, 225) + (START_TIME - timeLeft) * 2.0;
-
+  // Spawning
+  function spawnReceiver(){
+    const laneY = choice([190, 240, 290, 340]);
     const dir = Math.random() < 0.5 ? 1 : -1;
-    const x = dir === 1 ? -120 : W + 120;
+    const x = dir === 1 ? -140 : W + 140;
+    const spd = rand(150, 220) + (START_TIME - timeLeft) * 2.0;
 
     targets.push({
-      type: "receiver",
+      type:"receiver",
       x, y: laneY,
-      w: 58, h: 92,
-      dir,
-      spd: speed,
+      w: 72, h: 104,
+      dir, spd,
       bob: rand(0, Math.PI*2),
-
-      // Perfect Window ring
-      ringT: 0,           // time alive for ring
-      ringLife: PERFECT_LIFE,
-      ringOk: true
+      ringT: 0,
+      ringLife: PERFECT_LIFE
     });
   }
 
-  function spawnClock() {
+  function spawnClock(){
     const y = choice([175, 215, 255]);
     const dir = Math.random() < 0.5 ? 1 : -1;
-    const x = dir === 1 ? -120 : W + 120;
-    const spd = rand(150, 205);
+    const x = dir === 1 ? -140 : W + 140;
+    const spd = rand(145, 210);
 
     targets.push({
-      type: "clock",
+      type:"clock",
       x, y,
-      w: 46, h: 46,
-      dir,
-      spd,
+      w: 56, h: 56,
+      dir, spd,
       bob: rand(0, Math.PI*2)
     });
   }
 
-  // ---- Drawing: mega-upgraded stadium + field ----
-  function drawStadium(dt) {
-    // Background gradient
-    const g = ctx.createLinearGradient(0,0,0,H);
-    g.addColorStop(0, "#040812");
-    g.addColorStop(0.45, "#061531");
-    g.addColorStop(1, "#031226");
-    ctx.fillStyle = g;
-    ctx.fillRect(0,0,W,H);
-
-    // Roof band
-    ctx.fillStyle = "#061026";
-    ctx.fillRect(0,0,W,92);
-
-    // Lights (with glow)
-    for (let x=70; x<W; x+=220) {
-      ctx.fillStyle = "#1a2b55";
-      ctx.fillRect(x, 0, 14, 110);
-
-      ctx.globalAlpha = 0.16;
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(x-54, 10, 122, 16);
-      ctx.globalAlpha = 1;
-
-      ctx.globalAlpha = 0.10;
-      ctx.fillStyle = "#9ad1ff";
-      ctx.fillRect(x-80, 6, 170, 26);
-      ctx.globalAlpha = 1;
-    }
-
-    // Crowd bowl
-    ctx.fillStyle = "#081b3d";
-    ctx.fillRect(0,92,W,165);
-
-    // Crowd dots: denser + varied + tiny banners
-    ctx.globalAlpha = 0.85;
-    for (let y=104; y<245; y+=15) {
-      for (let x=10; x<W; x+=13) {
-        const r = (x*41 + y*23) % 140;
-        ctx.fillStyle =
-          r < 6  ? "#f08a1a" :
-          r < 18 ? "#d7e6ff" :
-          r < 48 ? "#1c3c7a" :
-          r < 90 ? "#14305c" :
-                  "#0f274a";
-        ctx.fillRect(x, y, 8, 8);
-      }
-    }
-    ctx.globalAlpha = 1;
-
-    // Mid ribbon board
-    ctx.fillStyle = "#0b1220";
-    ctx.fillRect(0,257,W,26);
-    ctx.globalAlpha = 0.80;
-    ctx.fillStyle = "#b21f2d";
-    for (let x=0; x<W; x+=170) ctx.fillRect(x+14, 264, 140, 12);
-    ctx.globalAlpha = 1;
-
-    // Field base
-    ctx.fillStyle = "#031a34";
-    ctx.fillRect(0,283,W,H-283);
-
-    // Turf texture: stripes + tiny noise specks
-    ctx.globalAlpha = 0.35;
-    for (let i=0;i<14;i++){
-      ctx.fillStyle = i%2===0 ? "#052a56" : "#042447";
-      ctx.fillRect(i*(W/14), 283, (W/14), H-283);
-    }
-    ctx.globalAlpha = 0.14;
-    ctx.fillStyle = "#0b3a78";
-    for (let i=0;i<420;i++){
-      const x = (i*37)%W;
-      const y = 290 + ((i*61)%(H-300));
-      ctx.fillRect(x, y, 2, 2);
-    }
-    ctx.globalAlpha = 1;
-
-    // Yard lines
-    ctx.fillStyle = "#d7e6ff";
-    ctx.globalAlpha = 0.78;
-    for (let x=46; x<W; x+=92){
-      ctx.fillRect(x, 304, 4, H-360);
-      ctx.globalAlpha = 0.28;
-      ctx.fillRect(x+12, H-44, 14, 8);
-      ctx.globalAlpha = 0.78;
-    }
-    ctx.globalAlpha = 1;
-
-    // Endzone band
-    ctx.globalAlpha = 0.35;
-    ctx.fillStyle = "#0b2a56";
-    ctx.fillRect(0, H-96, W, 96);
-    ctx.globalAlpha = 0.85;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, H-96, W, 6);
-    ctx.globalAlpha = 1;
-
-    // Scoreboard box
-    ctx.fillStyle = "#0b1220";
-    ctx.fillRect(W-340, 18, 310, 64);
-    ctx.strokeStyle = "#1f2c46";
-    ctx.strokeRect(W-340, 18, 310, 64);
-
-    ctx.fillStyle = "#ffffff";
-    ctx.globalAlpha = 0.92;
-    ctx.font = "16px sans-serif";
-    ctx.fillText("LIVINGSTON'S PASSING LAB", W-325, 44);
-    ctx.globalAlpha = 0.75;
-    ctx.fillText("PERFECT WINDOWS • CLOCKS +10s", W-325, 66);
-    ctx.globalAlpha = 1;
-
-    // Cooldown meter
-    const meterX = 18, meterY = 18, meterW = 190, meterH = 14;
-    ctx.fillStyle = "#0b1220";
-    ctx.fillRect(meterX, meterY, meterW, meterH);
-    ctx.strokeStyle = "#1f2c46";
-    ctx.strokeRect(meterX, meterY, meterW, meterH);
-
-    const pct = cdT <= 0 ? 1 : clamp(1 - (cdT / COOLDOWN), 0, 1);
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = pct >= 1 ? "#9ad1ff" : "#f08a1a";
-    ctx.fillRect(meterX+2, meterY+2, (meterW-4)*pct, meterH-4);
-    ctx.globalAlpha = 1;
-
-    ctx.fillStyle = "#ffffff";
-    ctx.globalAlpha = 0.8;
-    ctx.font = "12px sans-serif";
-    ctx.fillText("THROW", meterX + 6, meterY + 12);
-    ctx.globalAlpha = 1;
+  // Visual FX
+  function addTrail(x0,y0,x1,y1){
+    trails.push({x0,y0,x1,y1,t:0,life:0.16});
+  }
+  function addImpact(x,y,kind){
+    impacts.push({x,y,t:0,life:0.22,kind});
+  }
+  function addFloat(x,y,text,color){
+    floatText.push({x,y,text,color,t:0,life:0.85});
   }
 
-  // ---- Improved QB sprite (normal head placement, better proportions) ----
-  function drawQB() {
-    const x = 70, y = H-250;
-
-    const helm = KIT.helm, red = KIT.jersey, pants = KIT.pants, blue = KIT.accent, skin = KIT.skin;
-
-    // shadow
-    ctx.globalAlpha = 0.20;
-    ctx.fillStyle = "#0b0f1b";
-    ctx.fillRect(x+26, H-62, 170, 16);
-    ctx.globalAlpha = 1;
-
-    // legs
-    ctx.fillStyle = pants;
-    ctx.fillRect(x+52, y+148, 26, 64);
-    ctx.fillRect(x+88, y+148, 26, 64);
-
-    // pant stripe
-    ctx.fillStyle = blue;
-    ctx.fillRect(x+82, y+148, 6, 64);
-
-    // shoes
-    ctx.fillStyle = "#0a0a0a";
-    ctx.fillRect(x+48, y+202, 34, 14);
-    ctx.fillRect(x+84, y+202, 34, 14);
-
-    // torso
-    ctx.fillStyle = red;
-    ctx.fillRect(x+44, y+90, 104, 66);
-
-    // shoulder pads
-    ctx.fillStyle = blue;
-    ctx.fillRect(x+44, y+90, 18, 14);
-    ctx.fillRect(x+130, y+90, 18, 14);
-
-    // neck
-    ctx.fillStyle = skin;
-    ctx.fillRect(x+92, y+80, 14, 12);
-
-    // head/helmet positioned normally on neck
-    ctx.fillStyle = helm;
-    ctx.fillRect(x+96, y+42, 60, 44);
-
-    // face opening
-    ctx.fillStyle = skin;
-    ctx.fillRect(x+128, y+58, 22, 18);
-
-    // facemask
-    ctx.globalAlpha = 0.70;
-    ctx.fillStyle = "#d7e6ff";
-    ctx.fillRect(x+122, y+70, 28, 4);
-    ctx.fillRect(x+150, y+52, 4, 30);
-    ctx.globalAlpha = 1;
-
-    // arms: throw-ready
-    ctx.fillStyle = skin;
-    // back arm
-    ctx.fillRect(x+46, y+104, 22, 18);
-    // throwing arm extended
-    ctx.fillRect(x+132, y+104, 46, 16);
-
-    // gloves
-    ctx.fillStyle = "#e8eef7";
-    ctx.fillRect(x+170, y+104, 10, 16);
-
-    // ball near hand (QB holding it)
-    ctx.fillStyle = "#8b4c22";
-    ctx.fillRect(x+182, y+104, 18, 14);
-    ctx.fillStyle = "#ffffff";
-    ctx.globalAlpha = 0.65;
-    ctx.fillRect(x+190, y+104, 3, 14);
-    ctx.globalAlpha = 1;
-
-    // back nameplate + number 8 (cleaner)
-    ctx.globalAlpha = 0.88;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(x+64, y+100, 74, 14);
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = red;
-    ctx.font = "9px sans-serif";
-    ctx.fillText("LIVINGSTON", x+67, y+110);
-
-    ctx.globalAlpha = 0.92;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(x+92, y+118, 22, 30);
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = red;
-    ctx.fillRect(x+96, y+122, 14, 5);
-    ctx.fillRect(x+96, y+130, 14, 5);
-    ctx.fillRect(x+96, y+138, 14, 5);
+  // Geometry helpers
+  function pointInRect(px,py, r){
+    return px>=r.x && px<=r.x+r.w && py>=r.y && py<=r.y+r.h;
   }
 
-  // ---- Receiver sprite (normal head position, more human) ----
-  function drawReceiver(t, dt) {
-    t.bob += dt*4.9;
-    const bob = Math.sin(t.bob)*2;
+  function receiverCenter(t){
+    return { cx: t.x + t.w*0.44, cy: t.y + t.h*0.44 };
+  }
 
-    const x = t.x, y = t.y + bob;
-    const helm = KIT.helm, red = KIT.jersey, pants = KIT.pants, blue = KIT.accent, skin = KIT.skin;
-
-    // shadow
-    ctx.globalAlpha = 0.16;
-    ctx.fillStyle = "#0b0f1b";
-    ctx.fillRect(x+12, y + t.h + 8, t.w - 24, 10);
-    ctx.globalAlpha = 1;
-
-    // legs
-    ctx.fillStyle = pants;
-    ctx.fillRect(x+18, y+54, 16, 38);
-    ctx.fillRect(x+38, y+54, 16, 38);
-    ctx.fillStyle = blue;
-    ctx.fillRect(x+35, y+54, 4, 38);
-
-    // shoes
-    ctx.fillStyle = "#0a0a0a";
-    ctx.fillRect(x+16, y+86, 22, 10);
-    ctx.fillRect(x+36, y+86, 22, 10);
-
-    // torso
-    ctx.fillStyle = red;
-    ctx.fillRect(x+14, y+26, 48, 34);
-    ctx.fillStyle = blue;
-    ctx.fillRect(x+14, y+26, 8, 10);
-    ctx.fillRect(x+54, y+26, 8, 10);
-
-    // neck
-    ctx.fillStyle = skin;
-    ctx.fillRect(x+40, y+18, 10, 10);
-
-    // helmet (on neck, not floating)
-    ctx.fillStyle = helm;
-    ctx.fillRect(x+38, y+0, 30, 24);
-
-    // face opening
-    ctx.fillStyle = skin;
-    ctx.fillRect(x+56, y+10, 10, 10);
-
-    // facemask
-    ctx.globalAlpha = 0.65;
-    ctx.fillStyle = "#d7e6ff";
-    ctx.fillRect(x+50, y+16, 14, 3);
-    ctx.globalAlpha = 1;
-
-    // arms
-    ctx.fillStyle = skin;
-    ctx.fillRect(x+8,  y+34, 8, 20);
-    ctx.fillRect(x+62, y+34, 8, 20);
-
-    // Perfect window rings (visual)
-    const cx = x + 34;
-    const cy = y + 44;
+  function ringRadiusNow(t){
     const p = clamp(t.ringT / t.ringLife, 0, 1);
-    const rNow = PERFECT_RADIUS_START + (PERFECT_RADIUS_END - PERFECT_RADIUS_START) * p;
-
-    // soft outer ring
-    ctx.globalAlpha = 0.16;
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(cx, cy, rNow + 10, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-
-    // perfect ring (bright)
-    ctx.globalAlpha = 0.85;
-    ctx.strokeStyle = "#9ad1ff";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(cx, cy, rNow, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-
-    // headshot marker
-    ctx.globalAlpha = 0.20;
-    ctx.fillStyle = "#f08a1a";
-    ctx.fillRect(x+58, y+4, 10, 10);
-    ctx.globalAlpha = 1;
+    return R_START + (R_END - R_START) * p;
   }
 
-  function drawClock(t, dt) {
-    t.bob += dt*4.6;
-    const bob = Math.sin(t.bob)*2;
-    const x = t.x, y = t.y + bob;
+  // Throw logic
+  function canThrow(){ return cdT <= 0; }
 
-    // glow
-    ctx.globalAlpha = 0.14;
-    ctx.fillStyle = "#9ad1ff";
-    ctx.fillRect(x-8, y-8, t.w+16, t.h+16);
-    ctx.globalAlpha = 1;
-
-    // body
-    ctx.fillStyle = "#0b1220";
-    ctx.fillRect(x, y, t.w, t.h);
-    ctx.strokeStyle = "#1f2c46";
-    ctx.strokeRect(x, y, t.w, t.h);
-
-    // face
-    ctx.globalAlpha = 0.92;
-    ctx.fillStyle = "#d7e6ff";
-    ctx.fillRect(x+8, y+8, t.w-16, t.h-16);
-    ctx.globalAlpha = 1;
-
-    // hands
-    ctx.strokeStyle = "#0b1220";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(x+t.w/2, y+t.h/2);
-    ctx.lineTo(x+t.w/2, y+14);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x+t.w/2, y+t.h/2);
-    ctx.lineTo(x+t.w-14, y+t.h/2);
-    ctx.stroke();
-
-    // +10 label
-    ctx.globalAlpha = 0.95;
-    ctx.fillStyle = "#f08a1a";
-    ctx.fillRect(x, y+t.h-12, t.w, 12);
-    ctx.fillStyle = "#0b1220";
-    ctx.font = "10px sans-serif";
-    ctx.fillText("+10", x+12, y+t.h-3);
-    ctx.globalAlpha = 1;
-
-    // ring
-    ctx.globalAlpha = 0.28;
-    ctx.strokeStyle = "#9ad1ff";
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(x+t.w/2, y+t.h/2, 30, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-
-  function drawCrosshair() {
-    ctx.globalAlpha = 0.90;
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(aimX, aimY, 10, 0, Math.PI*2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(aimX-16, aimY); ctx.lineTo(aimX+16, aimY);
-    ctx.moveTo(aimX, aimY-16); ctx.lineTo(aimX, aimY+16);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-
-  function drawOverlay() {
-    if (state === "menu") {
-      ctx.globalAlpha = 0.78;
-      ctx.fillStyle = "#050b18";
-      ctx.fillRect(0,0,W,H);
-      ctx.globalAlpha = 1;
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "54px sans-serif";
-      ctx.fillText("Livingston’s Passing Lab", 60, 110);
-
-      ctx.globalAlpha = 0.85;
-      ctx.font = "18px sans-serif";
-      ctx.fillText("30 seconds. Fewer targets. Cooldown throws.", 60, 148);
-      ctx.fillText("Hit the shrinking ring for PERFECT throws (huge bonus).", 60, 176);
-      ctx.fillText("Clock targets add +10 seconds.", 60, 204);
-      ctx.fillText("Click / Space to start • P to pause", 60, 240);
-      ctx.globalAlpha = 1;
-    }
-
-    if (state === "pause") {
-      ctx.globalAlpha = 0.78;
-      ctx.fillStyle = "#050b18";
-      ctx.fillRect(0,0,W,H);
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "50px sans-serif";
-      ctx.fillText("Paused", 60, 130);
-      ctx.globalAlpha = 0.85;
-      ctx.font = "18px sans-serif";
-      ctx.fillText("Press P or Pause to resume.", 60, 166);
-      ctx.globalAlpha = 1;
-    }
-
-    if (state === "over") {
-      ctx.globalAlpha = 0.78;
-      ctx.fillStyle = "#050b18";
-      ctx.fillRect(0,0,W,H);
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "50px sans-serif";
-      ctx.fillText("Time!", 60, 130);
-      ctx.globalAlpha = 0.85;
-      ctx.font = "18px sans-serif";
-      ctx.fillText("Press Start to run it back.", 60, 166);
-      ctx.fillText("Perfect windows + clocks = huge scores.", 60, 194);
-      ctx.globalAlpha = 1;
-    }
-  }
-
-  // ---- Ball trail + impact effects ----
-  function addTrail(x0,y0,x1,y1) {
-    trails.push({ x0,y0,x1,y1, t: 0, life: 0.18 });
-  }
-  function addImpact(x,y, kind) {
-    impacts.push({ x,y, t: 0, life: 0.22, kind }); // kind: "hit"|"miss"|"perfect"|"clock"
-  }
-  function addFloat(x,y, text, color) {
-    floatText.push({ x,y, text, color, t: 0, life: 0.8 });
-  }
-
-  function drawTrails(dt) {
-    for (let i = trails.length-1; i>=0; i--) {
-      const tr = trails[i];
-      tr.t += dt;
-      const p = tr.t / tr.life;
-      if (p >= 1) { trails.splice(i,1); continue; }
-
-      ctx.globalAlpha = (1 - p) * 0.75;
-      ctx.strokeStyle = "#d7e6ff";
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(tr.x0, tr.y0);
-      ctx.lineTo(tr.x1, tr.y1);
-      ctx.stroke();
-
-      ctx.globalAlpha = (1 - p) * 0.35;
-      ctx.strokeStyle = "#9ad1ff";
-      ctx.lineWidth = 7;
-      ctx.beginPath();
-      ctx.moveTo(tr.x0, tr.y0);
-      ctx.lineTo(tr.x1, tr.y1);
-      ctx.stroke();
-
-      ctx.globalAlpha = 1;
-    }
-  }
-
-  function drawImpacts(dt) {
-    for (let i=impacts.length-1; i>=0; i--){
-      const im = impacts[i];
-      im.t += dt;
-      const p = im.t / im.life;
-      if (p >= 1) { impacts.splice(i,1); continue; }
-
-      const r = 8 + p * 28;
-      let col = "#ffffff";
-      if (im.kind === "miss") col = "#f08a1a";
-      if (im.kind === "hit") col = "#9ad1ff";
-      if (im.kind === "perfect") col = "#7cffd1";
-      if (im.kind === "clock") col = "#ffd447";
-
-      ctx.globalAlpha = (1 - p) * 0.70;
-      ctx.strokeStyle = col;
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.arc(im.x, im.y, r, 0, Math.PI*2);
-      ctx.stroke();
-
-      ctx.globalAlpha = (1 - p) * 0.18;
-      ctx.fillStyle = col;
-      ctx.beginPath();
-      ctx.arc(im.x, im.y, r + 10, 0, Math.PI*2);
-      ctx.fill();
-
-      ctx.globalAlpha = 1;
-    }
-  }
-
-  function drawFloatText(dt) {
-    for (let i=floatText.length-1;i>=0;i--){
-      const f = floatText[i];
-      f.t += dt;
-      const p = f.t / f.life;
-      if (p >= 1) { floatText.splice(i,1); continue; }
-
-      ctx.globalAlpha = (1 - p) * 0.95;
-      ctx.fillStyle = f.color;
-      ctx.font = "18px sans-serif";
-      ctx.fillText(f.text, f.x, f.y - p * 34);
-      ctx.globalAlpha = 1;
-    }
-  }
-
-  // ---- Throw logic (cooldown + perfect windows) ----
-  function canThrow() { return cdT <= 0; }
-  function startCooldown() { cdT = COOLDOWN; }
-
-  function receiverCenter(t) {
-    return { cx: t.x + 34, cy: t.y + 44 };
-  }
-
-  function ringRadiusNow(t) {
-    const p = clamp(t.ringT / t.ringLife, 0, 1);
-    return PERFECT_RADIUS_START + (PERFECT_RADIUS_END - PERFECT_RADIUS_START) * p;
-  }
-
-  function throwAt(x,y) {
-    if (state === "menu") { start(); return; }
-    if (state === "over") { start(); return; }
-    if (state !== "play") return;
+  function doThrow(x,y){
     if (!canThrow()) return;
 
-    startCooldown();
+    cdT = COOLDOWN;
+    qbThrowT = 0.18; // arm animation duration
 
-    // Ball trail from QB hand to click point
-    const qbHandX = 70 + 200;  // approx hand position relative to QB
-    const qbHandY = H - 250 + 104;
+    // QB "hand" origin point (tuned for our drawQB pose)
+    const qbHandX = 210;
+    const qbHandY = H - 190;
     addTrail(qbHandX, qbHandY, x, y);
 
-    // Find target hit (topmost)
+    // Find hit target
     let hitIndex = -1;
-    let headshot = false;
-    let perfect = false;
+    let isHead = false;
+    let isPerfect = false;
 
-    for (let i = targets.length - 1; i >= 0; i--) {
+    for (let i = targets.length - 1; i >= 0; i--){
       const t = targets[i];
 
       if (t.type === "clock") {
-        if (x >= t.x && x <= t.x+t.w && y >= t.y && y <= t.y+t.h) {
-          hitIndex = i;
-          break;
-        }
+        const rx = t.x, ry = t.y, rw = t.w, rh = t.h;
+        if (x>=rx && x<=rx+rw && y>=ry && y<=ry+rh){ hitIndex = i; break; }
         continue;
       }
 
-      // receiver body hitbox
-      const bx = t.x + 10, by = t.y + 12;
-      const bw = t.w - 20, bh = t.h - 16;
+      // Receiver hitbox (cartoon body)
+      const bx = t.x + 10, by = t.y + 10, bw = t.w - 20, bh = t.h - 14;
 
-      // headshot zone
-      const hx = t.x + 58, hy = t.y + 4, hw = 10, hh = 10;
+      // "Head" zone (helmet top-right)
+      const hx = t.x + t.w - 26, hy = t.y + 10, hw = 16, hh = 16;
 
-      if (x >= bx && x <= bx+bw && y >= by && y <= by+bh) {
+      if (x>=bx && x<=bx+bw && y>=by && y<=by+bh){
         hitIndex = i;
-        headshot = (x >= hx && x <= hx+hw && y >= hy && y <= hy+hh);
+        isHead = (x>=hx && x<=hx+hw && y>=hy && y<=hy+hh);
 
-        // Perfect window: click near ring radius at receiver center
-        const { cx, cy } = receiverCenter(t);
+        const {cx, cy} = receiverCenter(t);
         const dist = Math.hypot(x - cx, y - cy);
         const rNow = ringRadiusNow(t);
-        perfect = Math.abs(dist - rNow) <= PERFECT_THRESHOLD;
-
+        isPerfect = Math.abs(dist - rNow) <= PERFECT_THRESHOLD;
         break;
       }
     }
 
-    if (hitIndex >= 0) {
+    if (hitIndex >= 0){
       const t = targets[hitIndex];
 
-      if (t.type === "clock") {
+      if (t.type === "clock"){
         timeLeft = clamp(timeLeft + TIME_BONUS, 0, TIME_CAP);
         score += 18;
         hits += 1;
@@ -817,46 +335,43 @@
         targets.splice(hitIndex, 1);
 
         addImpact(x,y,"clock");
-        addFloat(x+10, y-8, "+10s", "#ffd447");
-        addFloat(x+10, y+14, "+18", "#d7e6ff");
+        addFloat(x+12, y-10, "+10s", "#ffd447");
+        addFloat(x+12, y+14, "+18", KIT.uiGlow);
         syncUI();
         return;
       }
 
-      // points
-      const basePts = 12;
+      const base = 12;
       const streakBonus = Math.min(36, streak * 2);
-      const headBonus = headshot ? 16 : 0;
-      const perfectBonus = perfect ? 22 : 0;
+      const headBonus = isHead ? 12 : 0;
+      const perfectBonus = isPerfect ? 22 : 0;
+      const pts = base + streakBonus + headBonus + perfectBonus;
 
-      const pts = basePts + streakBonus + headBonus + perfectBonus;
       score += pts;
       hits += 1;
       streak += 1;
 
-      // remove
-      const { cx, cy } = receiverCenter(t);
+      const {cx, cy} = receiverCenter(t);
       targets.splice(hitIndex, 1);
 
-      addImpact(cx, cy, perfect ? "perfect" : "hit");
-      addFloat(cx+12, cy, (perfect ? "PERFECT +" : "+") + pts, perfect ? "#7cffd1" : "#9ad1ff");
+      addImpact(cx, cy, isPerfect ? "perfect" : "hit");
+      addFloat(cx+14, cy, (isPerfect ? "PERFECT +" : "+") + pts, isPerfect ? "#7cffd1" : KIT.uiGlow);
 
     } else {
       misses += 1;
       streak = 0;
       addImpact(x,y,"miss");
-      addFloat(x+10, y, "MISS", "#f08a1a");
+      addFloat(x+12, y, "MISS", KIT.orange);
     }
 
-    if (score > high) {
+    if (score > high){
       high = score;
       localStorage.setItem("passing_lab_high", String(high));
     }
-
     syncUI();
   }
 
-  // ---- Input ----
+  // Input
   canvas.addEventListener("mousemove", (e) => {
     const r = canvas.getBoundingClientRect();
     aimX = (e.clientX - r.left) * (W / r.width);
@@ -867,12 +382,28 @@
     const r = canvas.getBoundingClientRect();
     const x = (e.clientX - r.left) * (W / r.width);
     const y = (e.clientY - r.top)  * (H / r.height);
-    throwAt(x,y);
+
+    if (state === "menu") {
+      // canvas start button
+      if (pointInRect(x,y,startBtn)) start();
+      else start(); // clicking anywhere starts too (feels good)
+      return;
+    }
+    if (state === "over") { start(); return; }
+    if (state !== "play") return;
+
+    doThrow(x,y);
   });
 
   window.addEventListener("keydown", (e) => {
-    if (e.code === "Space") { e.preventDefault(); if (state==="menu"||state==="over") start(); }
-    if (e.code === "KeyP") { e.preventDefault(); if (state==="play"||state==="pause") togglePause(); }
+    if (e.code === "Space") {
+      e.preventDefault();
+      if (state === "menu" || state === "over") start();
+    }
+    if (e.code === "KeyP") {
+      e.preventDefault();
+      if (state === "play" || state === "pause") togglePause();
+    }
   });
 
   btnStart.addEventListener("click", () => start());
@@ -887,26 +418,557 @@
     try { await navigator.clipboard.writeText(text); alert("Copied to clipboard!"); } catch { alert(text); }
   });
 
-  // ---- Update / Render ----
+  // --------- DRAWING (Cartoon / Flat Vector) ---------
+
+  function drawBackground(){
+    // Sky
+    ctx.fillStyle = "#0c1430";
+    ctx.fillRect(0,0,W,H);
+
+    // Stadium gradient glow
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = "#2a5bd6";
+    roundRect(30, 30, W-60, 120, 28);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Stands
+    ctx.fillStyle = "#0f2248";
+    ctx.fillRect(0, 0, W, 190);
+
+    // Crowd (flat dots)
+    for (let y=28; y<175; y+=18){
+      for (let x=18; x<W; x+=18){
+        const r = (x*17 + y*13) % 100;
+        ctx.fillStyle = r<6 ? KIT.orange : (r<18 ? "#ffffff" : (r<55 ? "#2a5bd6" : "#1b3b7a"));
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath();
+        ctx.arc(x, y, 4.2, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // Ribbon board
+    ctx.fillStyle = "#0b1220";
+    ctx.fillRect(0, 190, W, 28);
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = KIT.jersey;
+    for (let x=0; x<W; x+=180) ctx.fillRect(x+18, 198, 140, 12);
+    ctx.globalAlpha = 1;
+
+    // Field
+    ctx.fillStyle = "#0b6b3a";
+    ctx.fillRect(0, 218, W, H-218);
+
+    // Stripes
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = "#ffffff";
+    for (let i=0;i<14;i++){
+      if (i%2===0) ctx.fillRect(i*(W/14), 218, (W/14), H-218);
+    }
+    ctx.globalAlpha = 1;
+
+    // Yard lines
+    ctx.strokeStyle = "rgba(255,255,255,0.55)";
+    ctx.lineWidth = 3;
+    for (let x=60; x<W; x+=95){
+      ctx.beginPath();
+      ctx.moveTo(x, 240);
+      ctx.lineTo(x, H-90);
+      ctx.stroke();
+    }
+
+    // Endzone band
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = KIT.helm;
+    ctx.fillRect(0, H-96, W, 96);
+    ctx.globalAlpha = 1;
+
+    // Scoreboard card
+    drawBadge(W-330, 20, 300, 70, "#0b1220", "#1f2c46");
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "18px sans-serif";
+    ctx.globalAlpha = 0.92;
+    ctx.fillText("LIVINGSTON’S PASSING LAB", W-310, 48);
+    ctx.globalAlpha = 0.75;
+    ctx.font = "14px sans-serif";
+    ctx.fillText("Perfect rings • Clocks +10s • 30 seconds", W-310, 68);
+    ctx.globalAlpha = 1;
+
+    // Cooldown meter top-left (visual)
+    const mx=22, my=22, mw=210, mh=18;
+    drawBadge(mx, my, mw, mh, "#0b1220", "#1f2c46");
+    const pct = cdT<=0 ? 1 : clamp(1 - (cdT/COOLDOWN), 0, 1);
+    ctx.fillStyle = pct>=1 ? KIT.uiGlow : KIT.orange;
+    roundRect(mx+4, my+4, (mw-8)*pct, mh-8, 8);
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.85;
+    ctx.font = "12px sans-serif";
+    ctx.fillText("THROW", mx+10, my+13);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawCrosshair(){
+    ctx.strokeStyle = "rgba(255,255,255,0.92)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(aimX, aimY, 11, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(aimX-18, aimY); ctx.lineTo(aimX+18, aimY);
+    ctx.moveTo(aimX, aimY-18); ctx.lineTo(aimX, aimY+18);
+    ctx.stroke();
+  }
+
+  // Cartoon QB (static bottom-left) with animated throwing arm
+  function drawQB(dt){
+    const baseX = 70;
+    const baseY = H - 230;
+
+    const O = KIT.outline;
+    const helm = KIT.helm, red = KIT.jersey, pants = KIT.pants, skin = KIT.skin, accent = KIT.accent;
+
+    // body proportions (flat)
+    const torso = { x: baseX+70, y: baseY+70, w: 118, h: 86 };
+    const head  = { x: baseX+150, y: baseY+18, w: 76, h: 66 };
+
+    // legs
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = O;
+
+    // left leg
+    ctx.fillStyle = pants;
+    roundRect(baseX+95, baseY+150, 30, 70, 14); ctx.fill(); ctx.stroke();
+    // right leg
+    roundRect(baseX+132, baseY+150, 30, 70, 14); ctx.fill(); ctx.stroke();
+
+    // stripe
+    ctx.fillStyle = accent;
+    roundRect(baseX+124, baseY+150, 6, 70, 3); ctx.fill();
+
+    // shoes
+    ctx.fillStyle = "#1b1f2a";
+    roundRect(baseX+90, baseY+212, 40, 16, 10); ctx.fill(); ctx.stroke();
+    roundRect(baseX+127, baseY+212, 40, 16, 10); ctx.fill(); ctx.stroke();
+
+    // torso jersey
+    ctx.fillStyle = red;
+    roundRect(torso.x, torso.y, torso.w, torso.h, 22); ctx.fill(); ctx.stroke();
+
+    // shoulder accents
+    ctx.fillStyle = accent;
+    roundRect(torso.x+6, torso.y+8, 22, 18, 10); ctx.fill();
+    roundRect(torso.x+torso.w-28, torso.y+8, 22, 18, 10); ctx.fill();
+
+    // nameplate + number on back-ish panel
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.9;
+    roundRect(torso.x+20, torso.y+18, 78, 18, 10); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = red;
+    ctx.font = "10px sans-serif";
+    ctx.fillText("LIVINGSTON", torso.x+25, torso.y+31);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.9;
+    roundRect(torso.x+48, torso.y+42, 26, 34, 10); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = red;
+    // stylized "8"
+    ctx.fillRect(torso.x+55, torso.y+48, 12, 5);
+    ctx.fillRect(torso.x+55, torso.y+58, 12, 5);
+    ctx.fillRect(torso.x+55, torso.y+68, 12, 5);
+
+    // neck
+    ctx.fillStyle = skin;
+    roundRect(baseX+150, baseY+58, 20, 18, 8); ctx.fill(); ctx.stroke();
+
+    // helmet/head
+    ctx.fillStyle = helm;
+    roundRect(head.x, head.y, head.w, head.h, 26); ctx.fill(); ctx.stroke();
+
+    // face opening
+    ctx.fillStyle = skin;
+    roundRect(head.x+42, head.y+28, 26, 22, 10); ctx.fill(); ctx.stroke();
+
+    // facemask
+    ctx.strokeStyle = "rgba(255,255,255,0.75)";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(head.x+44, head.y+42);
+    ctx.lineTo(head.x+70, head.y+42);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(head.x+68, head.y+28);
+    ctx.lineTo(head.x+68, head.y+55);
+    ctx.stroke();
+
+    // ---- Arms (one animated) ----
+    // back arm (static)
+    ctx.strokeStyle = O;
+    ctx.lineWidth = 5;
+    ctx.fillStyle = skin;
+    roundRect(torso.x-18, torso.y+28, 28, 22, 10); ctx.fill(); ctx.stroke();
+
+    // throwing arm pivot around shoulder
+    const shoulderX = torso.x + torso.w - 10;
+    const shoulderY = torso.y + 34;
+
+    // qbThrowT anim (0..0.18). We map to a quick motion:
+    // start: slight back, then snap forward
+    const total = 0.18;
+    const p = qbThrowT > 0 ? clamp(1 - qbThrowT/total, 0, 1) : 0;
+    // ease
+    const ease = p < 0.5 ? (2*p*p) : (1 - Math.pow(-2*p+2,2)/2);
+
+    // angle in radians (wind-up -> release)
+    const ang = (-0.35) + (1.25 * ease); // about -20° to +70°
+
+    ctx.save();
+    ctx.translate(shoulderX, shoulderY);
+    ctx.rotate(ang);
+
+    // upper arm
+    ctx.fillStyle = skin;
+    roundRect(0, -8, 46, 18, 9); ctx.fill(); ctx.stroke();
+
+    // forearm
+    roundRect(42, -8, 44, 18, 9); ctx.fill(); ctx.stroke();
+
+    // glove
+    ctx.fillStyle = "#ffffff";
+    roundRect(78, -10, 16, 22, 8); ctx.fill(); ctx.stroke();
+
+    // ball near hand at early phase (disappears as it "throws")
+    const ballVisible = (qbThrowT > 0.05); // after release, it's gone
+    if (ballVisible){
+      ctx.fillStyle = "#8b4c22";
+      roundRect(96, -8, 20, 16, 8); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = "rgba(255,255,255,0.7)";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(106, -6); ctx.lineTo(106, 8);
+      ctx.stroke();
+      ctx.strokeStyle = O;
+      ctx.lineWidth = 5;
+    }
+
+    ctx.restore();
+  }
+
+  // Receiver (cartoon flat)
+  function drawReceiver(t, dt){
+    t.bob += dt*4.2;
+    const bob = Math.sin(t.bob) * 2.5;
+
+    const x = t.x;
+    const y = t.y + bob;
+
+    const O = KIT.outline;
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = O;
+
+    // Perfect ring
+    t.ringT += dt;
+    const {cx, cy} = receiverCenter(t);
+    const rNow = ringRadiusNow(t);
+
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.arc(cx, cy, rNow+12, 0, Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 0.95;
+    ctx.strokeStyle = KIT.uiGlow;
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(cx, cy, rNow, 0, Math.PI*2); ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // legs
+    ctx.strokeStyle = O;
+    ctx.lineWidth = 5;
+    ctx.fillStyle = KIT.pants;
+    roundRect(x+18, y+64, 20, 44, 12); ctx.fill(); ctx.stroke();
+    roundRect(x+42, y+64, 20, 44, 12); ctx.fill(); ctx.stroke();
+
+    // stripe
+    ctx.fillStyle = KIT.accent;
+    roundRect(x+38, y+64, 6, 44, 3); ctx.fill();
+
+    // shoes
+    ctx.fillStyle = "#1b1f2a";
+    roundRect(x+14, y+102, 28, 14, 9); ctx.fill(); ctx.stroke();
+    roundRect(x+38, y+102, 28, 14, 9); ctx.fill(); ctx.stroke();
+
+    // torso
+    ctx.fillStyle = KIT.jersey;
+    roundRect(x+14, y+28, 56, 48, 18); ctx.fill(); ctx.stroke();
+
+    // shoulder accents
+    ctx.fillStyle = KIT.accent;
+    roundRect(x+18, y+34, 16, 14, 8); ctx.fill();
+    roundRect(x+52, y+34, 16, 14, 8); ctx.fill();
+
+    // neck
+    ctx.fillStyle = KIT.skin;
+    roundRect(x+42, y+18, 16, 14, 7); ctx.fill(); ctx.stroke();
+
+    // helmet/head
+    ctx.fillStyle = KIT.helm;
+    roundRect(x+44, y+0, 44, 36, 18); ctx.fill(); ctx.stroke();
+
+    // face opening
+    ctx.fillStyle = KIT.skin;
+    roundRect(x+68, y+14, 16, 14, 7); ctx.fill(); ctx.stroke();
+
+    // facemask
+    ctx.strokeStyle = "rgba(255,255,255,0.75)";
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(x+66, y+24); ctx.lineTo(x+84, y+24); ctx.stroke();
+
+    // arms
+    ctx.strokeStyle = O;
+    ctx.lineWidth = 5;
+    ctx.fillStyle = KIT.skin;
+    roundRect(x+2,  y+40, 18, 24, 10); ctx.fill(); ctx.stroke();
+    roundRect(x+70, y+40, 18, 24, 10); ctx.fill(); ctx.stroke();
+
+    // headshot marker (small)
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = KIT.orange;
+    roundRect(x + t.w - 28, y + 10, 16, 16, 6); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Clock target (cartoon icon)
+  function drawClock(t, dt){
+    t.bob += dt*3.6;
+    const bob = Math.sin(t.bob) * 2.5;
+
+    const x=t.x, y=t.y + bob;
+    const O = KIT.outline;
+
+    // glow badge
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = "#ffd447";
+    roundRect(x-10, y-10, t.w+20, t.h+20, 16); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // body
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = O;
+    ctx.fillStyle = "#ffffff";
+    roundRect(x, y, t.w, t.h, 16); ctx.fill(); ctx.stroke();
+
+    // face circle
+    ctx.strokeStyle = "rgba(7,16,34,0.8)";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(x+t.w/2, y+t.h/2, 16, 0, Math.PI*2);
+    ctx.stroke();
+
+    // hands
+    ctx.strokeStyle = "rgba(7,16,34,0.9)";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(x+t.w/2, y+t.h/2);
+    ctx.lineTo(x+t.w/2, y+t.h/2-12);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x+t.w/2, y+t.h/2);
+    ctx.lineTo(x+t.w/2+12, y+t.h/2);
+    ctx.stroke();
+
+    // +10 ribbon
+    ctx.fillStyle = "#ffd447";
+    ctx.strokeStyle = O;
+    ctx.lineWidth = 4;
+    roundRect(x, y+t.h-18, t.w, 18, 10); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#071022";
+    ctx.font = "12px sans-serif";
+    ctx.fillText("+10", x+16, y+t.h-5);
+  }
+
+  function drawTrails(dt){
+    for (let i=trails.length-1;i>=0;i--){
+      const tr = trails[i];
+      tr.t += dt;
+      const p = tr.t / tr.life;
+      if (p >= 1){ trails.splice(i,1); continue; }
+
+      // flat vector trail: thick then thin
+      ctx.globalAlpha = (1-p) * 0.65;
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.moveTo(tr.x0, tr.y0); ctx.lineTo(tr.x1, tr.y1); ctx.stroke();
+
+      ctx.globalAlpha = (1-p) * 0.9;
+      ctx.strokeStyle = KIT.uiGlow;
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(tr.x0, tr.y0); ctx.lineTo(tr.x1, tr.y1); ctx.stroke();
+
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawImpacts(dt){
+    for (let i=impacts.length-1;i>=0;i--){
+      const im = impacts[i];
+      im.t += dt;
+      const p = im.t / im.life;
+      if (p >= 1){ impacts.splice(i,1); continue; }
+
+      let col = "#ffffff";
+      if (im.kind === "miss") col = KIT.orange;
+      if (im.kind === "hit") col = KIT.uiGlow;
+      if (im.kind === "perfect") col = "#7cffd1";
+      if (im.kind === "clock") col = "#ffd447";
+
+      const r = 10 + p*34;
+
+      ctx.globalAlpha = (1-p) * 0.8;
+      ctx.strokeStyle = col;
+      ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.arc(im.x, im.y, r, 0, Math.PI*2); ctx.stroke();
+
+      ctx.globalAlpha = (1-p) * 0.16;
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(im.x, im.y, r+14, 0, Math.PI*2); ctx.fill();
+
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawFloatText(dt){
+    for (let i=floatText.length-1;i>=0;i--){
+      const f = floatText[i];
+      f.t += dt;
+      const p = f.t / f.life;
+      if (p >= 1){ floatText.splice(i,1); continue; }
+
+      ctx.globalAlpha = (1-p) * 0.95;
+      ctx.fillStyle = f.color;
+      ctx.font = "20px sans-serif";
+      ctx.fillText(f.text, f.x, f.y - p*38);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawMenuOverlay(){
+    // Full-screen overlay (feels like a separate screen)
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = "#050914";
+    ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha = 1;
+
+    // Big center panel
+    const px = 90, py = 70, pw = W-180, ph = H-140;
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = KIT.uiGlow;
+    roundRect(px-8, py-8, pw+16, ph+16, 28);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    drawBadge(px, py, pw, ph, "#0b1220", "#1f2c46");
+
+    // Title
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.95;
+    ctx.font = "64px sans-serif";
+    ctx.fillText("Livingston’s", px+60, py+110);
+    ctx.font = "64px sans-serif";
+    ctx.fillText("Passing Lab", px+60, py+180);
+
+    // Subtitle
+    ctx.globalAlpha = 0.82;
+    ctx.font = "20px sans-serif";
+    ctx.fillText("30 seconds • Perfect rings • Clocks +10s • Cooldown throws", px+60, py+230);
+
+    // Instructions
+    ctx.globalAlpha = 0.85;
+    ctx.font = "18px sans-serif";
+    ctx.fillText("Click receivers to score. Hit the shrinking ring for PERFECT throws.", px+60, py+280);
+    ctx.fillText("Clock targets extend time. Don’t spam — cooldown matters.", px+60, py+308);
+    ctx.fillText("Click anywhere or press Space to begin.", px+60, py+346);
+    ctx.globalAlpha = 1;
+
+    // Start button (inside canvas)
+    const b = startBtn;
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = "#7cffd1";
+    roundRect(b.x-6, b.y-6, b.w+12, b.h+12, 22);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    drawBadge(b.x, b.y, b.w, b.h, "#7cffd1", KIT.outline);
+    ctx.fillStyle = "#071022";
+    ctx.font = "28px sans-serif";
+    ctx.fillText("START", b.x + 98, b.y + 42);
+
+    // Show QB silhouette on the panel (decor)
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = "#2a5bd6";
+    roundRect(px+pw-280, py+90, 190, 260, 36);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Draw QB on top for style preview
+    drawQB(0);
+  }
+
+  function drawPauseOverlay(){
+    ctx.globalAlpha = 0.78;
+    ctx.fillStyle = "#050914";
+    ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha = 1;
+
+    drawBadge(260, 170, 460, 200, "#0b1220", "#1f2c46");
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "56px sans-serif";
+    ctx.fillText("Paused", 360, 260);
+    ctx.globalAlpha = 0.85;
+    ctx.font = "18px sans-serif";
+    ctx.fillText("Press P or Pause to resume.", 385, 300);
+    ctx.globalAlpha = 1;
+  }
+
+  function drawOverOverlay(){
+    ctx.globalAlpha = 0.84;
+    ctx.fillStyle = "#050914";
+    ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha = 1;
+
+    drawBadge(220, 160, 540, 240, "#0b1220", "#1f2c46");
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "56px sans-serif";
+    ctx.fillText("Time!", 420, 250);
+    ctx.globalAlpha = 0.88;
+    ctx.font = "20px sans-serif";
+    ctx.fillText("Click or press Space to retry.", 345, 295);
+    ctx.globalAlpha = 1;
+  }
+
+  // Update
   function update(dt){
     if (state !== "play") return;
 
     // cooldown
     if (cdT > 0) cdT = Math.max(0, cdT - dt);
 
+    // arm animation timer
+    if (qbThrowT > 0) qbThrowT = Math.max(0, qbThrowT - dt);
+
     // time
     timeLeft -= dt;
-    if (timeLeft <= 0) { timeLeft = 0; gameOver(); return; }
+    if (timeLeft <= 0){ timeLeft = 0; gameOver(); return; }
 
-    // spawn pacing (still "less targets")
+    // spawn pacing
     const progress = 1 - (timeLeft / START_TIME);
-    spawnEvery = clamp(SPAWN_BASE - progress * 0.22, SPAWN_MIN, SPAWN_BASE);
+    spawnEvery = clamp(SPAWN_BASE - progress*0.22, SPAWN_MIN, SPAWN_BASE);
 
     spawnT += dt;
-    if (spawnT >= spawnEvery) {
+    if (spawnT >= spawnEvery){
       spawnT = 0;
-
-      if (targets.length < MAX_TARGETS) {
+      if (targets.length < MAX_TARGETS){
         const clockChance = timeLeft <= 10 ? 0.22 : 0.12;
         if (Math.random() < clockChance) spawnClock();
         else spawnReceiver();
@@ -914,53 +976,72 @@
     }
 
     // move targets
-    for (let i = targets.length - 1; i >= 0; i--){
+    for (let i=targets.length-1;i>=0;i--){
       const t = targets[i];
       t.x += t.dir * t.spd * dt;
 
-      if (t.type === "receiver") {
-        // ring timer
-        t.ringT += dt;
-        // after ring life, it keeps shrinking "past" perfect; still hittable, just harder
-      }
+      // ring timer already updated in drawReceiver, but we keep it sane here too
+      if (t.type === "receiver") t.ringT += dt;
 
-      if (t.x < -180 || t.x > W + 180) {
-        targets.splice(i, 1);
-        if (t.type === "receiver") { misses += 1; streak = 0; }
+      if (t.x < -220 || t.x > W + 220){
+        targets.splice(i,1);
+        if (t.type === "receiver"){ misses += 1; streak = 0; }
       }
     }
 
-    // effects timers are advanced in draw funcs, but we can prune here if needed (not necessary)
     syncUI();
   }
 
+  // Render
   function render(dt){
-    drawStadium(dt);
-    drawQB();
+    drawBackground();
+
+    // QB
+    drawQB(dt);
 
     // targets
-    for (const t of targets) {
+    for (const t of targets){
       if (t.type === "receiver") drawReceiver(t, dt);
       else drawClock(t, dt);
     }
 
-    // effects (on top)
+    // FX
     drawTrails(dt);
     drawImpacts(dt);
     drawFloatText(dt);
 
+    // crosshair
     drawCrosshair();
-    drawOverlay();
+
+    // overlays
+    if (state === "menu") drawMenuOverlay();
+    else if (state === "pause") drawPauseOverlay();
+    else if (state === "over") drawOverOverlay();
   }
 
+  // Main loop
   function loop(now){
     const dt = Math.min(0.033, (now - tPrev)/1000);
     tPrev = now;
 
     if (state !== "pause") update(dt);
     render(dt);
+
     requestAnimationFrame(loop);
   }
+
+  // Buttons
+  btnStart.addEventListener("click", () => start());
+  btnPause.addEventListener("click", () => { if (state==="play"||state==="pause") togglePause(); });
+
+  btnShare.addEventListener("click", async () => {
+    const url = "https://thefutureworld2055-cyber.github.io/wfl-hub/passing-lab.html";
+    const text = `I scored ${score} in Livingston’s Passing Lab 🏈🎯 Beat me: ${url}`;
+    if (navigator.share) {
+      try { await navigator.share({ title: "Livingston’s Passing Lab", text, url }); return; } catch {}
+    }
+    try { await navigator.clipboard.writeText(text); alert("Copied to clipboard!"); } catch { alert(text); }
+  });
 
   // init
   highEl.textContent = String(high);
