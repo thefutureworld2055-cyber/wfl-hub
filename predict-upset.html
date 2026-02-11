@@ -10,26 +10,41 @@
     button{ padding:8px 12px; border-radius:12px; border:1px solid var(--border); background:#0f1623; color:var(--text); cursor:pointer; font-weight:900; }
     button:hover{ border-color: var(--link); }
     .small{ font-size:12px; color:var(--muted); }
+    input{ width:100%; padding:10px; border-radius:10px; border:1px solid var(--border); background:#0b1220; color:var(--text); }
+    .ok{ color:#7cffd1; font-weight:900; }
+    .err{ color:#f08a1a; font-weight:900; }
   </style>
 </head>
 
 <body>
   <header>
     <h1>WFL HUB</h1>
-<nav>
-  <a href="index.html">Home</a>
-  <a href="schedule.html">Schedule</a>
-  <a href="news.html">News</a>
-  <a href="quiz.html">Quiz</a>
-  <a href="fan-activity.html">Fan Activity</a>
-<a href="arcade.html">Arcade</a>
-</nav>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="arcade.html">Arcade</a>
+    </nav>
   </header>
 
   <main class="wrap">
     <div class="card">
       <h2>Predict the upset</h2>
-      <p class="muted">Pick one underdog you believe in. Saved on your device.</p>
+      <p class="muted">Pick one underdog you believe in. Saved on your device + sent to WFL results.</p>
+
+      <div class="card" style="margin:14px 0;">
+        <h3 style="margin-top:0;">Optional info</h3>
+
+        <label style="display:block; font-weight:900; margin:10px 0 6px;">Your name (optional)</label>
+        <input id="fanName" placeholder="Fan name" />
+
+        <label style="display:block; font-weight:900; margin:10px 0 6px;">Your favorite team (optional)</label>
+        <input id="fanTeam" placeholder="Dallas / Madrid / etc." />
+
+        <p class="small" style="margin:10px 0 0;">(This helps the league see who’s voting, but is optional.)</p>
+      </div>
 
       <div id="games"></div>
 
@@ -37,11 +52,18 @@
         <p><strong>Your upset pick:</strong> <span id="pick">None yet</span></p>
         <p class="small">Update the matchups weekly by editing the list in the code.</p>
         <button id="clear">Clear my pick</button>
+        <p class="small" id="statusMsg"></p>
       </div>
     </div>
   </main>
 
 <script>
+  // =========================
+  // CONFIG
+  // =========================
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzx5b529PDqA1wsGXFttHg82DLsTa-QnOxrbA9TzYw25-Z3ueaBN324sw4H1DxY4pyR/exec";
+  const SECRET = "WFL_SECRET_123"; // must match Apps Script SECRET
+
   // EDIT THIS WEEKLY
   const UPSET_OPTIONS = [
     { underdog: "Wallerock", favorite: "Dallas" },
@@ -49,12 +71,70 @@
     { underdog: "Sarajevo", favorite: "Berlin" }
   ];
 
-  const KEY = "wfl_upset_pick";
+  const KEY_PICK = "wfl_upset_pick";
+  const KEY_FAN  = "wfl_fan_info";
+
   const pickEl = document.getElementById("pick");
   const games = document.getElementById("games");
+  const statusMsg = document.getElementById("statusMsg");
 
-  function load(){
-    pickEl.textContent = localStorage.getItem(KEY) || "None yet";
+  const fanNameEl = document.getElementById("fanName");
+  const fanTeamEl = document.getElementById("fanTeam");
+
+  function setStatus(text, kind=""){
+    statusMsg.className = "small " + (kind === "ok" ? "ok" : kind === "err" ? "err" : "");
+    statusMsg.textContent = text || "";
+  }
+
+  function loadFanInfo(){
+    const data = JSON.parse(localStorage.getItem(KEY_FAN) || "null");
+    if (data){
+      if (data.fanName) fanNameEl.value = data.fanName;
+      if (data.fanTeam) fanTeamEl.value = data.fanTeam;
+    }
+  }
+
+  function saveFanInfo(){
+    const data = {
+      fanName: fanNameEl.value.trim(),
+      fanTeam: fanTeamEl.value.trim()
+    };
+    localStorage.setItem(KEY_FAN, JSON.stringify(data));
+    return data;
+  }
+
+  function loadPick(){
+    pickEl.textContent = localStorage.getItem(KEY_PICK) || "None yet";
+  }
+
+  async function sendUpsetPick(underdog, favorite){
+    const fan = saveFanInfo();
+    setStatus("Sending to WFL…");
+
+    const payload = {
+      secret: SECRET,
+      activity: "Predict the Upset",
+      fanName: fan.fanName || "",
+      fanTeam: fan.fanTeam || "",
+      choice: `${underdog} over ${favorite}`,
+      comment: "",
+      page: location.href,
+      userAgent: navigator.userAgent
+    };
+
+    try {
+      const res = await fetch(WEB_APP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+
+      const out = await res.json();
+      if (out.ok) setStatus("✅ Sent!", "ok");
+      else setStatus("❌ Error: " + (out.error || "Unknown"), "err");
+    } catch (e) {
+      setStatus("❌ Failed to send (network).", "err");
+    }
   }
 
   function render(){
@@ -62,22 +142,37 @@
     UPSET_OPTIONS.forEach(g=>{
       const row = document.createElement("div");
       row.className = "opt";
-      row.innerHTML = `<div><strong>${g.underdog}</strong> vs ${g.favorite}<div class="small">Click to lock in the underdog.</div></div>`;
+      row.innerHTML =
+        `<div>
+          <strong>${g.underdog}</strong> vs ${g.favorite}
+          <div class="small">Click to lock in the underdog.</div>
+        </div>`;
+
       const btn = document.createElement("button");
       btn.textContent = "Pick";
-      btn.onclick = () => { localStorage.setItem(KEY, g.underdog); load(); };
+      btn.onclick = async () => {
+        localStorage.setItem(KEY_PICK, g.underdog);
+        loadPick();
+        await sendUpsetPick(g.underdog, g.favorite);
+      };
+
       row.appendChild(btn);
       games.appendChild(row);
     });
   }
 
   document.getElementById("clear").onclick = () => {
-    localStorage.removeItem(KEY);
-    load();
+    localStorage.removeItem(KEY_PICK);
+    loadPick();
+    setStatus("Cleared locally.");
   };
 
+  fanNameEl.onchange = saveFanInfo;
+  fanTeamEl.onchange = saveFanInfo;
+
   render();
-  load();
+  loadPick();
+  loadFanInfo();
 </script>
 </body>
 </html>
