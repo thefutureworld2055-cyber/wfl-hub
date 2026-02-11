@@ -1,38 +1,48 @@
 [
   {
     "id": "pulse-feb-9",
-    "title": "Week Pulse — Dallas stays hot, Berlin survives",
+    "title": "Week Pulse — Dallas Surges, Berlin Survives, Pressure Mounts in Saint Catherine",
     "date": "2026-02-09",
     "category": "Pulse",
-    "summary": "Dallas is surging at the right time, Berlin keeps escaping late, and Saint Catherine is slipping.",
+    "writer": "Ark Sports Desk",
+    "network": "WFL Network",
+    "summary": "Momentum builds in Dallas, Berlin keeps escaping late drama, and Saint Catherine faces its toughest stretch yet.",
     "body": [
-      "Dallas is surging at the right time and looks like the team nobody wants to face.",
-      "Berlin keeps surviving late — it’s working, but the margin is getting thinner each week.",
-      "Saint Catherine’s season is slipping away and the pressure is rising fast."
+      "Dallas is no longer just winning — they are dictating games. The offense is moving with confidence, the defense is closing drives, and for the first time this season, they look like a complete team rather than a collection of moments.",
+      "Berlin continues to walk the tightrope. Another late-game survival keeps them in contention, but the pattern is concerning. Close finishes build character, but they also expose cracks. How long can they rely on last-minute resilience?",
+      "Meanwhile, Saint Catherine’s season is slipping. Expectations were high, and early promise suggested a breakout year. Instead, inconsistency and late-game collapses are defining their narrative.",
+      "This week could reshape the league. Momentum is real, pressure is rising, and the standings are beginning to reflect identity rather than randomness."
     ]
   },
   {
     "id": "power-rankings-feb-7",
-    "title": "Power Rankings Update — top 3 reshuffle",
+    "title": "Power Rankings Shake-Up — A New Top Three Emerges",
     "date": "2026-02-07",
     "category": "Rankings",
-    "summary": "A surprise result shakes up the top of the league. Fans are already debating the order.",
+    "writer": "James Halberd",
+    "network": "WFL Network",
+    "summary": "A surprise result forces a reshuffle at the top as contenders separate themselves from pretenders.",
     "body": [
-      "This week’s results forced a reshuffle at the top of the league.",
-      "Some teams are climbing on momentum, while others are holding on by a thread.",
-      "Hit Fan Activity to vote and debate who belongs in the top spots."
+      "The top of the WFL has officially shifted. After weeks of debate and narrow margins, a surprise result forced voters to reconsider the pecking order.",
+      "Dallas climbs on consistency alone. They are not flashy, but they are efficient. In a league defined by chaos, stability has become a weapon.",
+      "Madrid remains dangerous despite recent turbulence. Their ceiling might still be the highest in the league, but the floor has dropped enough to invite criticism.",
+      "Berlin holds strong in the rankings despite close calls. Critics argue their record flatters them, but wins are wins — and the standings rarely care about aesthetics.",
+      "The debate continues in Fan Activity. Agree or disagree, the league has never felt tighter."
     ]
   },
   {
     "id": "fraud-watch-feb-6",
-    "title": "Fraud Watch is live — vote and share",
+    "title": "Fraud Watch Goes Live — Who Is Getting Too Much Hype?",
     "date": "2026-02-06",
     "category": "Fan Activity",
-    "summary": "Which team is getting too much hype? Drop your vote and see what the league thinks.",
+    "writer": "WFL Editorial Board",
+    "network": "WFL Network",
+    "summary": "The most controversial poll of the season is now open — fans decide who’s overrated.",
     "body": [
-      "Fraud Watch is live.",
-      "Vote for the team you think is the most overrated right now.",
-      "Then share your pick and see where the league lands."
+      "Every season has one team that rides the wave of perception longer than production. The question is simple: who is that team this year?",
+      "Fraud Watch is not about disrespect — it is about accountability. Records matter, but context matters more. Are certain teams benefiting from reputation rather than performance?",
+      "The vote is live now in Fan Activity. One click, no accounts, and your voice shapes the conversation.",
+      "Results will be featured in the next WFL Pulse. Choose carefully — narratives can shift overnight."
     ]
   }
 ]
