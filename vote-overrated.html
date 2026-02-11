@@ -10,26 +10,41 @@
     button{ padding:8px 12px; border-radius:12px; border:1px solid var(--border); background:#0f1623; color:var(--text); cursor:pointer; font-weight:900; }
     button:hover{ border-color: var(--link); }
     .small{ font-size:12px; color:var(--muted); }
+    input{ width:100%; padding:10px; border-radius:10px; border:1px solid var(--border); background:#0b1220; color:var(--text); }
+    .ok{ color:#7cffd1; font-weight:900; }
+    .err{ color:#f08a1a; font-weight:900; }
   </style>
 </head>
 
 <body>
   <header>
     <h1>WFL HUB</h1>
-<nav>
-  <a href="index.html">Home</a>
-  <a href="schedule.html">Schedule</a>
-  <a href="news.html">News</a>
-  <a href="quiz.html">Quiz</a>
-  <a href="fan-activity.html">Fan Activity</a>
-<a href="arcade.html">Arcade</a>
-</nav>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="arcade.html">Arcade</a>
+    </nav>
   </header>
 
   <main class="wrap">
     <div class="card">
       <h2>Vote: Who’s overrated?</h2>
-      <p class="muted">One click. No account. We save your pick on your device.</p>
+      <p class="muted">One click. No account. We save your pick on your device + send it to WFL results.</p>
+
+      <div class="card" style="margin:14px 0;">
+        <h3 style="margin-top:0;">Optional info</h3>
+
+        <label style="display:block; font-weight:900; margin:10px 0 6px;">Your name (optional)</label>
+        <input id="fanName" placeholder="Fan name" />
+
+        <label style="display:block; font-weight:900; margin:10px 0 6px;">Your favorite team (optional)</label>
+        <input id="fanTeam" placeholder="Dallas / Madrid / etc." />
+
+        <p class="small" style="margin:10px 0 0;">(Optional, but helps the league understand who’s voting.)</p>
+      </div>
 
       <div id="list"></div>
 
@@ -37,22 +52,85 @@
         <p><strong>Your current pick:</strong> <span id="pick">None yet</span></p>
         <p class="small">Tip: you can change your vote anytime.</p>
         <button id="clear">Clear my vote</button>
+        <p class="small" id="statusMsg"></p>
       </div>
     </div>
   </main>
 
 <script>
+  // =========================
+  // CONFIG
+  // =========================
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzx5b529PDqA1wsGXFttHg82DLsTa-QnOxrbA9TzYw25-Z3ueaBN324sw4H1DxY4pyR/exec";
+  const SECRET = "WFL_SECRET_123"; // must match Apps Script SECRET
+
   // EDIT THIS LIST
   const TEAMS = ["Madrid","Berlin","Palermo","San Francisco"];
 
-  const KEY = "wfl_overrated_pick";
+  const KEY_PICK = "wfl_overrated_pick";
+  const KEY_FAN  = "wfl_fan_info";
 
   const list = document.getElementById("list");
   const pick = document.getElementById("pick");
+  const statusMsg = document.getElementById("statusMsg");
+  const fanNameEl = document.getElementById("fanName");
+  const fanTeamEl = document.getElementById("fanTeam");
+
+  function setStatus(text, kind=""){
+    statusMsg.className = "small " + (kind === "ok" ? "ok" : kind === "err" ? "err" : "");
+    statusMsg.textContent = text || "";
+  }
+
+  function loadFanInfo(){
+    const data = JSON.parse(localStorage.getItem(KEY_FAN) || "null");
+    if (data){
+      if (data.fanName) fanNameEl.value = data.fanName;
+      if (data.fanTeam) fanTeamEl.value = data.fanTeam;
+    }
+  }
+
+  function saveFanInfo(){
+    const data = {
+      fanName: fanNameEl.value.trim(),
+      fanTeam: fanTeamEl.value.trim()
+    };
+    localStorage.setItem(KEY_FAN, JSON.stringify(data));
+    return data;
+  }
 
   function load(){
-    const p = localStorage.getItem(KEY);
+    const p = localStorage.getItem(KEY_PICK);
     pick.textContent = p || "None yet";
+  }
+
+  async function sendVote(team){
+    const fan = saveFanInfo();
+    setStatus("Sending to WFL…");
+
+    const payload = {
+      secret: SECRET,
+      activity: "Who’s Overrated?",
+      fanName: fan.fanName || "",
+      fanTeam: fan.fanTeam || "",
+      choice: team,
+      comment: "",
+      page: location.href,
+      userAgent: navigator.userAgent
+    };
+
+    try {
+      const res = await fetch(WEB_APP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+
+      const out = await res.json();
+      if (out.ok) setStatus("✅ Sent!", "ok");
+      else setStatus("❌ Error: " + (out.error || "Unknown"), "err");
+    } catch (e) {
+      setStatus("❌ Failed to send (network).", "err");
+    }
   }
 
   function render(){
@@ -61,21 +139,32 @@
       const row = document.createElement("div");
       row.className = "opt";
       row.innerHTML = `<div><strong>${t}</strong><div class="small">Click to vote.</div></div>`;
+
       const btn = document.createElement("button");
       btn.textContent = "Vote";
-      btn.onclick = () => { localStorage.setItem(KEY, t); load(); };
+      btn.onclick = async () => {
+        localStorage.setItem(KEY_PICK, t);
+        load();
+        await sendVote(t);
+      };
+
       row.appendChild(btn);
       list.appendChild(row);
     });
   }
 
   document.getElementById("clear").onclick = () => {
-    localStorage.removeItem(KEY);
+    localStorage.removeItem(KEY_PICK);
     load();
+    setStatus("Cleared locally.");
   };
+
+  fanNameEl.onchange = saveFanInfo;
+  fanTeamEl.onchange = saveFanInfo;
 
   render();
   load();
+  loadFanInfo();
 </script>
 </body>
 </html>
