@@ -54,11 +54,12 @@
       </div>
 
       <p class="hint">
-        Minimal aim-trainer style. Click receivers. Hit the shrinking ring for PERFECT. Clock targets add +10s.
+        Arcade drill: thick trails, big hits, stadium energy. Perfect ring = huge bonus.
+        Clock targets add +10s. Receivers are #80 / #83 / #11.
       </p>
 
       <canvas id="c" width="980" height="540"></canvas>
-      <p class="hint">Style: WFL training sim (dark blue + red). Heads centered on body.</p>
+      <p class="hint">Optional images: assets/livingston-jersey-back.jpg and assets/team-helmet.png</p>
     </div>
   </main>
 
@@ -82,50 +83,99 @@
   const btnPause = document.getElementById("btnPause");
   const btnShare = document.getElementById("btnShare");
 
+  // Helpers
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
   const rand = (a,b)=>a+Math.random()*(b-a);
   const choice = (arr)=>arr[(Math.random()*arr.length)|0];
 
-  // ===== Brand-leaning minimal palette =====
-  const C = {
-    bg0: "#040913",
-    bg1: "#061326",
-    grid: "rgba(154,209,255,0.08)",
-    line: "rgba(255,255,255,0.10)",
-    ui:  "#0b1220",
-    uiStroke: "#1f2c46",
-    text: "#ffffff",
-    muted: "rgba(255,255,255,0.65)",
+  function rr(x,y,w,h,r){
+    r = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+
+  function badge(x,y,w,h,fill,stroke){
+    ctx.fillStyle = fill;
+    rr(x,y,w,h,14); ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+  }
+
+  function shadowRect(x,y,w,h,alpha=0.18){
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "#070a12";
+    rr(x+6,y+6,w,h,16); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // ===== Optional images (if you upload them to /assets/) =====
+  const imgJersey = new Image();
+  const imgHelmet = new Image();
+  let jerseyOK = false, helmetOK = false;
+
+  imgJersey.onload = () => jerseyOK = true;
+  imgHelmet.onload = () => helmetOK = true;
+
+  // safe to attempt load; if missing, it just won't draw
+  imgJersey.src = "assets/livingston-jersey-back.jpg";
+  imgHelmet.src = "assets/team-helmet.png";
+
+  // ===== Colors (Arcade + your kit) =====
+  const PAL = {
+    night: "#050914",
+    skyA: "#071638",
+    skyB: "#061126",
+    crowd: "#0b1f46",
+    ribbon: "#0b1220",
+    turfA: "#083f2a",
+    turfB: "#063622",
+    yard: "rgba(255,255,255,0.75)",
+    glow: "rgba(154,209,255,0.35)",
     cyan: "#9ad1ff",
-    red:  "#b21f2d",
-    redSoft: "rgba(178,31,45,0.25)",
     orange: "#f08a1a",
     perfect: "#7cffd1",
-    clock: "#ffd447"
+    clock: "#ffd447",
+    red: "#b21f2d",
+    outline: "rgba(0,0,0,0.35)"
   };
 
-  // Livingston kit
-  const KIT = {
+  // Livingston (QB) — white
+  const QB = {
     helm: "#0b2a56",
     jersey: "#b21f2d",
     pants: "#f3f6fb",
     accent: "#0b2a56",
-    skin: "#f0d2b6" // Livingston is white
+    skin: "#f0d2b6"
   };
 
-  // ===== Game constants =====
+  // Receivers — black (same uniform, darker skin)
+  const WR = {
+    helm: "#0b2a56",
+    jersey: "#b21f2d",
+    pants: "#f3f6fb",
+    accent: "#0b2a56",
+    skin: "#4a2e23"
+  };
+
+  // ===== Game constants (keep mechanics) =====
   const START_TIME = 30;
   const TIME_BONUS = 10;
   const TIME_CAP = 60;
 
-  const MAX_TARGETS = 4;   // less targets
-  const SPAWN_BASE = 1.60;
-  const SPAWN_MIN  = 1.10;
+  const MAX_TARGETS = 4;     // less targets
+  const SPAWN_BASE = 1.45;
+  const SPAWN_MIN  = 0.95;
 
-  const COOLDOWN = 0.44;
+  const COOLDOWN = 0.42;
 
-  // Perfect shrinking ring
-  const PERFECT_LIFE = 1.10;
+  // Perfect ring
+  const PERFECT_LIFE = 1.05;
   const R_START = 36;
   const R_END   = 12;
   const PERFECT_THRESHOLD = 4.0;
@@ -148,38 +198,26 @@
   // QB throw animation timer
   let qbThrowT = 0;
 
+  // camera shake (arcade feel)
+  let shakeT = 0;
+  let shakeP = 0;
+
   // Entities
   const targets = [];   // receiver | clock
   const trails = [];    // ball trails
   const impacts = [];   // impact rings
-  const floatText = []; // floating +pts, MISS, +10s
+  const floatText = []; // floating text
 
-  // Canvas start button (separate screen feel)
-  const startBtn = { x: W/2 - 160, y: H/2 + 120, w: 320, h: 64 };
+  // Start screen button bounds
+  const startBtn = { x: W/2 - 160, y: H/2 + 140, w: 320, h: 70 };
 
-  // ===== Drawing helpers =====
-  function rr(x,y,w,h,r){
-    r = Math.min(r, w/2, h/2);
-    ctx.beginPath();
-    ctx.moveTo(x+r, y);
-    ctx.arcTo(x+w, y, x+w, y+h, r);
-    ctx.arcTo(x+w, y+h, x, y+h, r);
-    ctx.arcTo(x, y+h, x, y, r);
-    ctx.arcTo(x, y, x+w, y, r);
-    ctx.closePath();
-  }
+  // 3 receiver models/poses
+  const RECEIVER_MODELS = [
+    { num: "80", pose: 0 }, // running
+    { num: "83", pose: 1 }, // hands up
+    { num: "11", pose: 2 }  // diving
+  ];
 
-  function badge(x,y,w,h){
-    ctx.fillStyle = C.ui;
-    rr(x,y,w,h,14); ctx.fill();
-    ctx.strokeStyle = C.uiStroke;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-
-  function inRect(px,py,r){ return px>=r.x && px<=r.x+r.w && py>=r.y && py<=r.y+r.h; }
-
-  // ===== Reset/start =====
   function syncUI(){
     scoreEl.textContent = String(score);
     hitsEl.textContent = String(hits);
@@ -202,6 +240,7 @@
     spawnEvery = SPAWN_BASE;
     cdT = 0;
     qbThrowT = 0;
+    shakeT = 0; shakeP = 0;
 
     targets.length = 0;
     trails.length = 0;
@@ -234,28 +273,31 @@
 
   // ===== Spawning =====
   function spawnReceiver(){
-    // lanes on the field
-    const laneY = choice([215, 265, 315, 365]);
+    const laneY = choice([190, 235, 280, 325]);
     const dir = Math.random() < 0.5 ? 1 : -1;
     const x = dir === 1 ? -160 : W + 160;
-    const spd = rand(150, 220) + (START_TIME - timeLeft) * 2.0;
+    const spd = rand(160, 240) + (START_TIME - timeLeft) * 2.2;
+
+    const m = choice(RECEIVER_MODELS);
 
     targets.push({
       type:"receiver",
       x, y: laneY,
-      w: 70, h: 100,
+      w: 78, h: 112,
       dir, spd,
       bob: rand(0, Math.PI*2),
       ringT: 0,
-      ringLife: PERFECT_LIFE
+      ringLife: PERFECT_LIFE,
+      num: m.num,
+      pose: m.pose
     });
   }
 
   function spawnClock(){
-    const y = choice([205, 245, 285]);
+    const y = choice([175, 215, 255]);
     const dir = Math.random() < 0.5 ? 1 : -1;
     const x = dir === 1 ? -160 : W + 160;
-    const spd = rand(145, 210);
+    const spd = rand(150, 220);
 
     targets.push({
       type:"clock",
@@ -266,15 +308,18 @@
     });
   }
 
-  // ===== Effects =====
-  function addTrail(x0,y0,x1,y1){ trails.push({x0,y0,x1,y1,t:0,life:0.16}); }
-  function addImpact(x,y,kind){ impacts.push({x,y,t:0,life:0.22,kind}); }
-  function addFloat(x,y,text,color){ floatText.push({x,y,text,color,t:0,life:0.85}); }
+  // ===== FX =====
+  function addTrail(x0,y0,x1,y1){ trails.push({x0,y0,x1,y1,t:0,life:0.18}); }
+  function addImpact(x,y,kind){ impacts.push({x,y,t:0,life:0.25,kind}); }
+  function addFloat(x,y,text,color){ floatText.push({x,y,text,color,t:0,life:0.9}); }
 
-  // ===== Geometry for perfect ring =====
+  function shake(power){
+    shakeT = 0.18;
+    shakeP = Math.max(shakeP, power);
+  }
+
   function receiverCenter(t){
-    // Center point for ring (slightly above torso center feels nicer)
-    return { cx: t.x + t.w*0.50, cy: t.y + t.h*0.44 };
+    return { cx: t.x + t.w*0.48, cy: t.y + t.h*0.45 };
   }
 
   function ringRadiusNow(t){
@@ -282,271 +327,381 @@
     return R_START + (R_END - R_START) * p;
   }
 
-  // ===== Minimal background =====
-  function drawBackground(){
-    // Gradient background
+  // ===== Drawing: Arcade stadium =====
+  function drawStadium(dt){
+    // sky gradient
     const g = ctx.createLinearGradient(0,0,0,H);
-    g.addColorStop(0, C.bg0);
-    g.addColorStop(1, C.bg1);
+    g.addColorStop(0, PAL.skyA);
+    g.addColorStop(0.6, PAL.skyB);
+    g.addColorStop(1, "#031125");
     ctx.fillStyle = g;
     ctx.fillRect(0,0,W,H);
 
-    // Subtle "training field" plane
-    ctx.fillStyle = "rgba(255,255,255,0.03)";
-    ctx.fillRect(0, 170, W, H-170);
+    // lights glow
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = PAL.glow;
+    rr(40, 20, W-80, 90, 26); ctx.fill();
+    ctx.globalAlpha = 1;
 
-    // Horizontal guide lines (very subtle)
-    ctx.strokeStyle = C.line;
-    ctx.lineWidth = 1;
-    for (let y=190; y<H-70; y+=28){
-      ctx.beginPath();
-      ctx.moveTo(0,y);
-      ctx.lineTo(W,y);
-      ctx.stroke();
+    // crowd band
+    ctx.fillStyle = PAL.crowd;
+    ctx.fillRect(0, 0, W, 175);
+
+    // crowd dots (arcade)
+    ctx.globalAlpha = 0.9;
+    for (let y=18; y<160; y+=14){
+      for (let x=12; x<W; x+=12){
+        const r = (x*31 + y*17) % 120;
+        ctx.fillStyle =
+          r < 8  ? "#ffffff" :
+          r < 20 ? PAL.orange :
+          r < 55 ? "#2a5bd6" :
+                   "#14305c";
+        ctx.fillRect(x, y, 6, 6);
+      }
     }
+    ctx.globalAlpha = 1;
 
-    // Vertical "yard" ticks (faint)
-    ctx.strokeStyle = C.grid;
-    ctx.lineWidth = 1;
-    for (let x=60; x<W; x+=96){
+    // ribbon
+    ctx.fillStyle = PAL.ribbon;
+    ctx.fillRect(0, 175, W, 28);
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = PAL.red;
+    for (let x=0; x<W; x+=180) ctx.fillRect(x+16, 183, 140, 12);
+    ctx.globalAlpha = 1;
+
+    // turf
+    ctx.fillStyle = PAL.turfA;
+    ctx.fillRect(0, 203, W, H-203);
+
+    // turf stripes
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = PAL.turfB;
+    for (let i=0;i<14;i++){
+      if (i%2===0) ctx.fillRect(i*(W/14), 203, (W/14), H-203);
+    }
+    ctx.globalAlpha = 1;
+
+    // yard lines
+    ctx.strokeStyle = PAL.yard;
+    ctx.globalAlpha = 0.65;
+    ctx.lineWidth = 3;
+    for (let x=60; x<W; x+=92){
       ctx.beginPath();
-      ctx.moveTo(x, 180);
+      ctx.moveTo(x, 230);
       ctx.lineTo(x, H-80);
       ctx.stroke();
     }
-
-    // Endzone-ish bottom band (brand red glow)
-    ctx.fillStyle = C.redSoft;
-    ctx.fillRect(0, H-92, W, 92);
-
-    // Top HUD strip (minimal)
-    badge(20, 18, W-40, 54);
-    ctx.fillStyle = C.text;
-    ctx.globalAlpha = 0.92;
-    ctx.font = "16px sans-serif";
-    ctx.fillText("WFL TRAINING MODULE", 40, 48);
-    ctx.globalAlpha = 0.70;
-    ctx.fillText("LIVINGSTON’S PASSING LAB", 220, 48);
     ctx.globalAlpha = 1;
 
-    // Cooldown meter (right side of strip)
-    const mx = W - 270, my = 32, mw = 220, mh = 10;
-    ctx.fillStyle = "rgba(255,255,255,0.10)";
-    rr(mx, my, mw, mh, 6); ctx.fill();
+    // endzone band
+    ctx.globalAlpha = 0.22;
+    ctx.fillStyle = QB.helm;
+    ctx.fillRect(0, H-96, W, 96);
+    ctx.globalAlpha = 1;
 
+    // top HUD plate
+    shadowRect(W-340, 18, 320, 68, 0.22);
+    badge(W-340, 18, 320, 68, "#0b1220", "#1f2c46");
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.92;
+    ctx.font = "18px sans-serif";
+    ctx.fillText("LIVINGSTON’S PASSING LAB", W-320, 46);
+    ctx.globalAlpha = 0.75;
+    ctx.font = "14px sans-serif";
+    ctx.fillText("PERFECT RING • CLOCKS +10s • COOLDOWN", W-320, 66);
+    ctx.globalAlpha = 1;
+
+    // helmet art (optional image)
+    if (helmetOK){
+      ctx.globalAlpha = 0.95;
+      ctx.drawImage(imgHelmet, W-120, 22, 92, 62);
+      ctx.globalAlpha = 1;
+    } else {
+      // fallback tiny helmet icon
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = QB.helm;
+      rr(W-118, 32, 62, 36, 16); ctx.fill();
+      ctx.fillStyle = PAL.red;
+      rr(W-78, 42, 36, 12, 6); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // cooldown meter
+    const mx = 18, my = 22, mw = 210, mh = 16;
+    shadowRect(mx, my, mw, mh, 0.18);
+    badge(mx, my, mw, mh, "#0b1220", "#1f2c46");
     const pct = cdT<=0 ? 1 : clamp(1 - (cdT/COOLDOWN), 0, 1);
-    ctx.fillStyle = pct>=1 ? C.cyan : C.orange;
-    rr(mx, my, mw*pct, mh, 6); ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.75)";
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = pct>=1 ? PAL.cyan : PAL.orange;
+    rr(mx+3, my+3, (mw-6)*pct, mh-6, 10); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#ffffff";
+    ctx.globalAlpha = 0.75;
     ctx.font = "12px sans-serif";
-    ctx.fillText("COOLDOWN", mx-88, my+10);
+    ctx.fillText("THROW", mx+8, my+13);
+    ctx.globalAlpha = 1;
   }
 
-  // ===== Minimal crosshair =====
   function drawCrosshair(){
-    ctx.strokeStyle = "rgba(255,255,255,0.90)";
-    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(aimX, aimY, 10, 0, Math.PI*2); ctx.stroke();
     ctx.beginPath();
     ctx.moveTo(aimX-16, aimY); ctx.lineTo(aimX+16, aimY);
     ctx.moveTo(aimX, aimY-16); ctx.lineTo(aimX, aimY+16);
     ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
-  // ===== Minimal characters with CENTERED heads =====
-  // QB is static bottom-left, silhouette-ish but kit colored.
-  function drawQB(dt){
-    const baseX = 60;
-    const baseY = H - 210;
+  // ===== Characters: Chunky arcade football =====
+  function drawQB(){
+    const baseX = 70;
+    const baseY = H - 260;
 
-    // Body (torso)
-    const torso = { x: baseX+70, y: baseY+60, w: 120, h: 78 };
-    // HEAD CENTERED ON TORSO CENTERLINE:
-    const headW = 50, headH = 46;
-    const head = {
-      x: torso.x + (torso.w - headW)/2,
-      y: torso.y - headH + 10,
-      w: headW,
-      h: headH
-    };
+    // big shadow
+    ctx.globalAlpha = 0.20;
+    ctx.fillStyle = "#05070c";
+    rr(baseX+30, H-64, 190, 18, 12); ctx.fill();
+    ctx.globalAlpha = 1;
 
-    // Legs
-    ctx.fillStyle = KIT.pants;
-    rr(baseX+92, baseY+132, 24, 62, 10); ctx.fill();
-    rr(baseX+122, baseY+132, 24, 62, 10); ctx.fill();
+    // torso (big shoulders)
+    shadowRect(baseX+40, baseY+80, 150, 80, 0.22);
+    ctx.fillStyle = QB.jersey;
+    rr(baseX+40, baseY+80, 150, 80, 22); ctx.fill();
 
-    // Shoes (minimal)
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    rr(baseX+86, baseY+186, 34, 12, 8); ctx.fill();
-    rr(baseX+116, baseY+186, 34, 12, 8); ctx.fill();
+    // shoulder pads accent
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = QB.accent;
+    rr(baseX+44, baseY+86, 28, 18, 10); ctx.fill();
+    rr(baseX+160, baseY+86, 28, 18, 10); ctx.fill();
+    ctx.globalAlpha = 1;
 
-    // Torso
-    ctx.fillStyle = KIT.jersey;
-    rr(torso.x, torso.y, torso.w, torso.h, 16); ctx.fill();
+    // legs
+    ctx.fillStyle = QB.pants;
+    rr(baseX+78, baseY+150, 34, 74, 16); ctx.fill();
+    rr(baseX+118, baseY+150, 34, 74, 16); ctx.fill();
 
-    // Accent stripe (subtle)
-    ctx.fillStyle = "rgba(255,255,255,0.14)";
-    rr(torso.x+10, torso.y+12, torso.w-20, 6, 4); ctx.fill();
+    // shoes
+    ctx.fillStyle = "#0a0a0a";
+    rr(baseX+72, baseY+214, 46, 16, 10); ctx.fill();
+    rr(baseX+112, baseY+214, 46, 16, 10); ctx.fill();
 
-    // Neck (centered)
-    ctx.fillStyle = KIT.skin;
-    rr(torso.x + torso.w/2 - 8, torso.y - 6, 16, 16, 6); ctx.fill();
+    // neck
+    ctx.fillStyle = QB.skin;
+    rr(baseX+116, baseY+62, 16, 20, 8); ctx.fill();
 
-    // Helmet/head (centered)
-    ctx.fillStyle = KIT.helm;
-    rr(head.x, head.y, head.w, head.h, 14); ctx.fill();
+    // helmet (big)
+    ctx.fillStyle = QB.helm;
+    rr(baseX+96, baseY+18, 78, 56, 26); ctx.fill();
 
-    // Facemask highlight (minimal)
-    ctx.fillStyle = "rgba(255,255,255,0.30)";
-    rr(head.x+30, head.y+22, 14, 4, 2); ctx.fill();
+    // facemask highlight
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = "#d7e6ff";
+    rr(baseX+138, baseY+44, 26, 6, 4); ctx.fill();
+    rr(baseX+160, baseY+26, 6, 36, 3); ctx.fill();
+    ctx.globalAlpha = 1;
 
-    // Name + number (minimal label)
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.font = "11px sans-serif";
-    ctx.fillText("LIVINGSTON  #8", torso.x+12, torso.y+26);
+    // jersey label (back vibe)
+    ctx.globalAlpha = 0.92;
+    ctx.fillStyle = "#ffffff";
+    rr(baseX+68, baseY+92, 96, 18, 10); ctx.fill();
+    ctx.fillStyle = QB.jersey;
+    ctx.font = "10px sans-serif";
+    ctx.fillText("LIVINGSTON", baseX+76, baseY+105);
+    ctx.globalAlpha = 1;
 
-    // Arms (one animated throw arm)
-    // Back arm (static)
-    ctx.fillStyle = KIT.skin;
-    rr(torso.x-16, torso.y+26, 22, 18, 8); ctx.fill();
+    // number 8 (chunky)
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = "#ffffff";
+    rr(baseX+106, baseY+114, 28, 40, 10); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = QB.jersey;
+    rr(baseX+112, baseY+120, 16, 6, 4); ctx.fill();
+    rr(baseX+112, baseY+132, 16, 6, 4); ctx.fill();
+    rr(baseX+112, baseY+144, 16, 6, 4); ctx.fill();
 
-    // Throwing arm animation pivot
-    const shoulderX = torso.x + torso.w - 8;
-    const shoulderY = torso.y + 30;
+    // back arm (static)
+    ctx.fillStyle = QB.skin;
+    rr(baseX+30, baseY+98, 28, 22, 10); ctx.fill();
 
-    // qbThrowT: 0.18 sec snap
+    // throwing arm (animated)
+    const shoulderX = baseX + 186;
+    const shoulderY = baseY + 112;
+
     const total = 0.18;
     const p = qbThrowT > 0 ? clamp(1 - qbThrowT/total, 0, 1) : 0;
     const ease = p < 0.5 ? (2*p*p) : (1 - Math.pow(-2*p+2,2)/2);
-    const ang = (-0.25) + (1.05 * ease);
+    const ang = (-0.45) + (1.35 * ease); // exaggerated snap
 
     ctx.save();
     ctx.translate(shoulderX, shoulderY);
     ctx.rotate(ang);
 
-    ctx.fillStyle = KIT.skin;
-    rr(0, -7, 44, 14, 7); ctx.fill();     // upper
-    rr(40, -7, 40, 14, 7); ctx.fill();    // forearm
+    ctx.fillStyle = QB.skin;
+    rr(0, -10, 52, 20, 10); ctx.fill();
+    rr(48, -10, 50, 20, 10); ctx.fill();
 
     // glove
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    rr(74, -9, 14, 18, 6); ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    rr(90, -12, 16, 26, 8); ctx.fill();
 
-    // ball visible only at early part of motion
-    const ballVisible = (qbThrowT > 0.05);
-    if (ballVisible){
+    // ball early
+    if (qbThrowT > 0.05){
       ctx.fillStyle = "#8b4c22";
-      rr(92, -6, 16, 12, 6); ctx.fill();
-      ctx.fillStyle = "rgba(255,255,255,0.55)";
-      rr(99, -6, 2, 12, 1); ctx.fill();
+      rr(112, -8, 20, 16, 8); ctx.fill();
+      ctx.globalAlpha = 0.65;
+      ctx.fillStyle = "#ffffff";
+      rr(122, -8, 3, 16, 1); ctx.fill();
+      ctx.globalAlpha = 1;
     }
 
     ctx.restore();
   }
 
+  // receiver (3 poses) — black skin tone
   function drawReceiver(t, dt){
-    t.bob += dt*3.6;
-    const bob = Math.sin(t.bob)*2.2;
+    t.bob += dt*4.6;
+    const bob = Math.sin(t.bob) * 2.2;
+
     const x = t.x;
     const y = t.y + bob;
 
-    // Torso (minimal silhouette) + kit color
-    const torso = { x: x+10, y: y+30, w: 50, h: 48 };
-
-    // HEAD CENTERED on torso:
-    const headW = 34, headH = 30;
-    const head = {
-      x: torso.x + (torso.w - headW)/2,
-      y: torso.y - headH + 8,
-      w: headW,
-      h: headH
-    };
+    // shadow
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = "#05070c";
+    rr(x+16, y+t.h+10, t.w-32, 12, 10); ctx.fill();
+    ctx.globalAlpha = 1;
 
     // Perfect ring
-    const {cx, cy} = receiverCenter({x: x, y: y, w: t.w, h: t.h});
+    const {cx, cy} = receiverCenter(t);
     const rNow = ringRadiusNow(t);
 
-    // Outer faint ring
     ctx.globalAlpha = 0.18;
-    ctx.strokeStyle = "rgba(255,255,255,0.55)";
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 5;
     ctx.beginPath(); ctx.arc(cx, cy, rNow+12, 0, Math.PI*2); ctx.stroke();
-    // Perfect ring
     ctx.globalAlpha = 0.95;
-    ctx.strokeStyle = C.cyan;
-    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = PAL.cyan;
+    ctx.lineWidth = 4;
     ctx.beginPath(); ctx.arc(cx, cy, rNow, 0, Math.PI*2); ctx.stroke();
     ctx.globalAlpha = 1;
 
-    // Legs
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    rr(x+18, y+78, 16, 34, 8); ctx.fill();
-    rr(x+38, y+78, 16, 34, 8); ctx.fill();
+    // body pieces (chunky)
+    // legs
+    ctx.fillStyle = WR.pants;
+    rr(x+18, y+70, 18, 42, 10); ctx.fill();
+    rr(x+42, y+70, 18, 42, 10); ctx.fill();
 
-    // Torso
-    ctx.fillStyle = KIT.jersey;
-    rr(torso.x, torso.y, torso.w, torso.h, 14); ctx.fill();
+    // shoes
+    ctx.fillStyle = "#0a0a0a";
+    rr(x+14, y+104, 28, 12, 8); ctx.fill();
+    rr(x+38, y+104, 28, 12, 8); ctx.fill();
 
-    // Neck
-    ctx.fillStyle = KIT.skin;
-    rr(torso.x + torso.w/2 - 5, torso.y - 4, 10, 12, 5); ctx.fill();
+    // torso
+    ctx.fillStyle = WR.jersey;
+    rr(x+14, y+28, 56, 50, 18); ctx.fill();
 
-    // Helmet/head
-    ctx.fillStyle = KIT.helm;
-    rr(head.x, head.y, head.w, head.h, 10); ctx.fill();
+    // shoulder pads
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = WR.accent;
+    rr(x+18, y+32, 16, 14, 8); ctx.fill();
+    rr(x+50, y+32, 16, 14, 8); ctx.fill();
+    ctx.globalAlpha = 1;
 
-    // Minimal facemask highlight
-    ctx.fillStyle = "rgba(255,255,255,0.30)";
-    rr(head.x + head.w - 12, head.y + 14, 8, 3, 2); ctx.fill();
+    // neck
+    ctx.fillStyle = WR.skin;
+    rr(x+38, y+18, 18, 14, 8); ctx.fill();
 
-    // Arms (minimal)
-    ctx.fillStyle = "rgba(255,255,255,0.10)";
-    rr(torso.x-10, torso.y+14, 12, 20, 6); ctx.fill();
-    rr(torso.x+torso.w-2, torso.y+14, 12, 20, 6); ctx.fill();
+    // helmet
+    ctx.fillStyle = WR.helm;
+    rr(x+38, y+2, 50, 34, 16); ctx.fill();
 
-    // Headshot marker (small red dot, minimal)
+    // facemask
+    ctx.globalAlpha = 0.7;
+    ctx.fillStyle = "#d7e6ff";
+    rr(x+70, y+18, 16, 5, 3); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // number plate (big + readable)
     ctx.globalAlpha = 0.9;
-    ctx.fillStyle = C.red;
-    rr(head.x + head.w - 10, head.y + 6, 6, 6, 3); ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    rr(x+30, y+46, 26, 22, 8); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = WR.jersey;
+    ctx.font = "12px sans-serif";
+    ctx.fillText(t.num, x+33, y+61);
+
+    // arms based on pose
+    ctx.fillStyle = WR.skin;
+
+    if (t.pose === 0){
+      // running
+      rr(x+6,  y+44, 14, 26, 8); ctx.fill();
+      rr(x+70, y+44, 14, 26, 8); ctx.fill();
+    } else if (t.pose === 1){
+      // hands up (catch pose)
+      rr(x+2, y+34, 16, 38, 8); ctx.fill();
+      rr(x+76,y+34, 16, 38, 8); ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      rr(x+0, y+28, 16, 10, 6); ctx.fill();
+      rr(x+76,y+28, 16, 10, 6); ctx.fill();
+    } else {
+      // diving (one arm forward)
+      rr(x+0, y+52, 36, 14, 8); ctx.fill();
+      rr(x+68,y+44, 16, 30, 8); ctx.fill();
+    }
+
+    // headshot marker (tiny)
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = PAL.orange;
+    rr(x+t.w-18, y+8, 10, 10, 4); ctx.fill();
     ctx.globalAlpha = 1;
   }
 
   function drawClock(t, dt){
-    t.bob += dt*3.1;
-    const bob = Math.sin(t.bob)*2.0;
-    const x = t.x, y = t.y + bob;
+    t.bob += dt*4.0;
+    const bob = Math.sin(t.bob) * 2.0;
+    const x = t.x;
+    const y = t.y + bob;
 
-    // Minimal icon: ring + center + tiny hands
-    ctx.globalAlpha = 0.95;
-    ctx.strokeStyle = C.clock;
+    // glow
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = PAL.clock;
+    rr(x-10, y-10, t.w+20, t.h+20, 18); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // body
+    shadowRect(x, y, t.w, t.h, 0.18);
+    badge(x, y, t.w, t.h, "#ffffff", "#1f2c46");
+
+    // clock face
+    ctx.strokeStyle = "rgba(0,0,0,0.4)";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(x + t.w/2, y + t.h/2, 18, 0, Math.PI*2);
+    ctx.arc(x+t.w/2, y+t.h/2, 16, 0, Math.PI*2);
     ctx.stroke();
 
-    ctx.globalAlpha = 0.18;
-    ctx.fillStyle = C.clock;
+    // hands
+    ctx.strokeStyle = "rgba(0,0,0,0.65)";
+    ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(x + t.w/2, y + t.h/2, 26, 0, Math.PI*2);
-    ctx.fill();
-
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = "rgba(255,255,255,0.65)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(x + t.w/2, y + t.h/2);
-    ctx.lineTo(x + t.w/2, y + t.h/2 - 10);
+    ctx.moveTo(x+t.w/2, y+t.h/2);
+    ctx.lineTo(x+t.w/2, y+t.h/2-10);
     ctx.stroke();
     ctx.beginPath();
-    ctx.moveTo(x + t.w/2, y + t.h/2);
-    ctx.lineTo(x + t.w/2 + 10, y + t.h/2);
+    ctx.moveTo(x+t.w/2, y+t.h/2);
+    ctx.lineTo(x+t.w/2+10, y+t.h/2);
     ctx.stroke();
 
-    // +10 label (minimal)
-    ctx.globalAlpha = 0.85;
-    ctx.fillStyle = C.clock;
+    // +10 label
+    ctx.globalAlpha = 0.95;
+    ctx.fillStyle = PAL.clock;
+    rr(x, y+t.h-16, t.w, 16, 10); ctx.fill();
+    ctx.fillStyle = "#0b1220";
     ctx.font = "12px sans-serif";
-    ctx.fillText("+10s", x + 6, y + t.h + 14);
+    ctx.fillText("+10", x+16, y+t.h-4);
     ctx.globalAlpha = 1;
   }
 
@@ -557,15 +712,15 @@
       const p = tr.t / tr.life;
       if (p >= 1){ trails.splice(i,1); continue; }
 
-      // Very clean aim-trainer trail
-      ctx.globalAlpha = (1-p) * 0.65;
-      ctx.strokeStyle = "rgba(255,255,255,0.85)";
-      ctx.lineWidth = 3;
+      // thick arcade trail
+      ctx.globalAlpha = (1-p)*0.55;
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 10;
       ctx.beginPath(); ctx.moveTo(tr.x0, tr.y0); ctx.lineTo(tr.x1, tr.y1); ctx.stroke();
 
-      ctx.globalAlpha = (1-p) * 0.35;
-      ctx.strokeStyle = C.cyan;
-      ctx.lineWidth = 7;
+      ctx.globalAlpha = (1-p)*0.85;
+      ctx.strokeStyle = PAL.cyan;
+      ctx.lineWidth = 5;
       ctx.beginPath(); ctx.moveTo(tr.x0, tr.y0); ctx.lineTo(tr.x1, tr.y1); ctx.stroke();
 
       ctx.globalAlpha = 1;
@@ -579,21 +734,21 @@
       const p = im.t / im.life;
       if (p >= 1){ impacts.splice(i,1); continue; }
 
-      let col = C.cyan;
-      if (im.kind === "miss") col = C.orange;
-      if (im.kind === "perfect") col = C.perfect;
-      if (im.kind === "clock") col = C.clock;
+      let col = PAL.cyan;
+      if (im.kind === "miss") col = PAL.orange;
+      if (im.kind === "perfect") col = PAL.perfect;
+      if (im.kind === "clock") col = PAL.clock;
 
-      const r = 10 + p*34;
+      const r = 10 + p*38;
 
-      ctx.globalAlpha = (1-p) * 0.8;
+      ctx.globalAlpha = (1-p)*0.85;
       ctx.strokeStyle = col;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 7;
       ctx.beginPath(); ctx.arc(im.x, im.y, r, 0, Math.PI*2); ctx.stroke();
 
-      ctx.globalAlpha = (1-p) * 0.14;
+      ctx.globalAlpha = (1-p)*0.18;
       ctx.fillStyle = col;
-      ctx.beginPath(); ctx.arc(im.x, im.y, r+14, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(im.x, im.y, r+16, 0, Math.PI*2); ctx.fill();
 
       ctx.globalAlpha = 1;
     }
@@ -606,98 +761,122 @@
       const p = f.t / f.life;
       if (p >= 1){ floatText.splice(i,1); continue; }
 
-      ctx.globalAlpha = (1-p) * 0.95;
+      ctx.globalAlpha = (1-p)*0.95;
       ctx.fillStyle = f.color;
-      ctx.font = "18px sans-serif";
-      ctx.fillText(f.text, f.x, f.y - p*34);
+      ctx.font = "20px sans-serif";
+      ctx.fillText(f.text, f.x, f.y - p*40);
       ctx.globalAlpha = 1;
     }
   }
 
-  // ===== Overlays (separate screen feel) =====
+  // ===== Overlays =====
   function drawMenuOverlay(){
-    // Full-screen dark overlay
-    ctx.globalAlpha = 0.92;
-    ctx.fillStyle = C.bg0;
+    // full overlay
+    ctx.globalAlpha = 0.84;
+    ctx.fillStyle = PAL.night;
     ctx.fillRect(0,0,W,H);
     ctx.globalAlpha = 1;
 
-    // Center panel
-    const px = 90, py = 80, pw = W-180, ph = H-160;
-    badge(px, py, pw, ph);
+    // big panel
+    shadowRect(90, 70, W-180, H-140, 0.28);
+    badge(90, 70, W-180, H-140, "#0b1220", "#1f2c46");
 
-    // Red accent bar
-    ctx.fillStyle = C.red;
-    rr(px, py, pw, 8, 4); ctx.fill();
+    // header bar
+    ctx.fillStyle = PAL.red;
+    rr(90, 70, W-180, 10, 4); ctx.fill();
 
-    // Title
-    ctx.fillStyle = C.text;
+    // title
+    ctx.fillStyle = "#ffffff";
     ctx.globalAlpha = 0.95;
-    ctx.font = "56px sans-serif";
-    ctx.fillText("LIVINGSTON’S PASSING LAB", px+44, py+110);
+    ctx.font = "64px sans-serif";
+    ctx.fillText("LIVINGSTON’S", 140, 160);
+    ctx.fillText("PASSING LAB", 140, 230);
 
-    ctx.globalAlpha = 0.70;
-    ctx.font = "18px sans-serif";
-    ctx.fillText("TRAINING DRILL • 30 SECONDS • PERFECT WINDOWS • CLOCKS +10s • COOLDOWN THROWS", px+44, py+150);
-
-    // Instructions (minimal)
-    ctx.globalAlpha = 0.82;
+    // subtitle
+    ctx.globalAlpha = 0.8;
     ctx.font = "20px sans-serif";
-    ctx.fillText("Click receivers to score.", px+44, py+210);
-    ctx.fillText("Time your click to the shrinking ring for PERFECT.", px+44, py+242);
-    ctx.fillText("Hit clock targets to add +10 seconds.", px+44, py+274);
+    ctx.fillText("ARCADE DRILL • 30 SECONDS • PERFECT RING • CLOCKS +10s • COOLDOWN", 140, 270);
 
-    // Start button
-    ctx.globalAlpha = 1;
-    ctx.fillStyle = C.cyan;
+    // rules
+    ctx.globalAlpha = 0.88;
+    ctx.font = "22px sans-serif";
+    ctx.fillText("CLICK RECEIVERS TO SCORE.", 140, 320);
+    ctx.fillText("TIME IT ON THE SHRINKING RING FOR PERFECT.", 140, 350);
+    ctx.fillText("HIT CLOCKS TO ADD +10 SECONDS.", 140, 380);
+
+    // optional jersey image preview
+    if (jerseyOK){
+      ctx.globalAlpha = 0.95;
+      ctx.drawImage(imgJersey, W-360, 120, 240, 240);
+      ctx.globalAlpha = 1;
+    } else {
+      // fallback: big name/8
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = PAL.red;
+      rr(W-360, 120, 240, 240, 22); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "26px sans-serif";
+      ctx.fillText("LIVINGSTON", W-336, 180);
+      ctx.font = "120px sans-serif";
+      ctx.globalAlpha = 0.85;
+      ctx.fillText("8", W-285, 300);
+      ctx.globalAlpha = 1;
+    }
+
+    // start button
+    shadowRect(startBtn.x, startBtn.y, startBtn.w, startBtn.h, 0.22);
+    ctx.fillStyle = PAL.cyan;
     rr(startBtn.x, startBtn.y, startBtn.w, startBtn.h, 16); ctx.fill();
-    ctx.fillStyle = C.bg0;
-    ctx.font = "26px sans-serif";
-    ctx.fillText("START DRILL", startBtn.x + 84, startBtn.y + 42);
+    ctx.fillStyle = "#061126";
+    ctx.font = "30px sans-serif";
+    ctx.fillText("START", startBtn.x + 122, startBtn.y + 46);
 
-    // Decorative: QB silhouette preview
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = "rgba(154,209,255,0.10)";
-    rr(px+pw-320, py+190, 250, 210, 18); ctx.fill();
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "16px sans-serif";
+    ctx.fillText("Click anywhere to start • Space also works • P pauses", 140, startBtn.y + 110);
     ctx.globalAlpha = 1;
 
-    // Draw QB preview
-    drawQB(0);
+    // QB cameo
+    drawQB();
   }
 
   function drawPauseOverlay(){
-    ctx.globalAlpha = 0.85;
-    ctx.fillStyle = C.bg0;
+    ctx.globalAlpha = 0.78;
+    ctx.fillStyle = PAL.night;
     ctx.fillRect(0,0,W,H);
     ctx.globalAlpha = 1;
 
-    badge(290, 190, 400, 160);
-    ctx.fillStyle = C.text;
-    ctx.font = "48px sans-serif";
-    ctx.fillText("PAUSED", 390, 255);
-    ctx.globalAlpha = 0.75;
+    shadowRect(270, 190, 440, 160, 0.28);
+    badge(270, 190, 440, 160, "#0b1220", "#1f2c46");
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "56px sans-serif";
+    ctx.fillText("PAUSED", 380, 260);
+    ctx.globalAlpha = 0.85;
     ctx.font = "18px sans-serif";
-    ctx.fillText("Press P or Pause to resume.", 360, 295);
+    ctx.fillText("Press P or Pause to resume.", 360, 305);
     ctx.globalAlpha = 1;
   }
 
   function drawOverOverlay(){
-    ctx.globalAlpha = 0.85;
-    ctx.fillStyle = C.bg0;
+    ctx.globalAlpha = 0.80;
+    ctx.fillStyle = PAL.night;
     ctx.fillRect(0,0,W,H);
     ctx.globalAlpha = 1;
 
-    badge(250, 175, 480, 200);
-    ctx.fillStyle = C.text;
-    ctx.font = "48px sans-serif";
-    ctx.fillText("DRILL COMPLETE", 300, 245);
-    ctx.globalAlpha = 0.75;
-    ctx.font = "18px sans-serif";
-    ctx.fillText("Click or press Space to retry.", 360, 290);
+    shadowRect(240, 170, 500, 210, 0.28);
+    badge(240, 170, 500, 210, "#0b1220", "#1f2c46");
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "56px sans-serif";
+    ctx.fillText("TIME!", 420, 250);
+    ctx.globalAlpha = 0.85;
+    ctx.font = "20px sans-serif";
+    ctx.fillText("Click or Space to retry.", 380, 295);
     ctx.globalAlpha = 1;
   }
 
-  // ===== Throwing =====
+  // ===== Throw logic =====
   function canThrow(){ return cdT <= 0; }
 
   function doThrow(x,y){
@@ -707,16 +886,16 @@
     qbThrowT = 0.18;
 
     // QB hand origin (tuned)
-    const qbHandX = 60 + 70 + 120 + 10; // baseX + torso.x offset-ish
-    const qbHandY = H - 210 + 60 + 30;  // baseY + torso.y offset-ish
+    const qbHandX = 70 + 240;
+    const qbHandY = H - 260 + 112;
     addTrail(qbHandX, qbHandY, x, y);
 
-    // Find hit target (topmost)
+    // find hit target (topmost)
     let hitIndex = -1;
     let headshot = false;
     let perfect = false;
 
-    for (let i = targets.length - 1; i >= 0; i--){
+    for (let i=targets.length-1;i>=0;i--){
       const t = targets[i];
 
       if (t.type === "clock"){
@@ -724,19 +903,19 @@
         continue;
       }
 
-      // receiver body hitbox
       const bx = t.x + 10, by = t.y + 10, bw = t.w - 20, bh = t.h - 10;
       if (x>=bx && x<=bx+bw && y>=by && y<=by+bh){
         hitIndex = i;
 
-        // headshot zone: small dot near helmet top-right
-        const hx = t.x + t.w*0.60, hy = t.y + 16, hw = 16, hh = 16;
+        // headshot marker region near helmet
+        const hx = t.x + t.w*0.60, hy = t.y + 10, hw = 18, hh = 18;
         headshot = (x>=hx && x<=hx+hw && y>=hy && y<=hy+hh);
 
         const {cx, cy} = receiverCenter(t);
         const dist = Math.hypot(x-cx, y-cy);
         const rNow = ringRadiusNow(t);
         perfect = Math.abs(dist - rNow) <= PERFECT_THRESHOLD;
+
         break;
       }
     }
@@ -750,16 +929,17 @@
 
         targets.splice(hitIndex, 1);
         addImpact(x,y,"clock");
-        addFloat(x+12, y-8, "+10s", C.clock);
-        addFloat(x+12, y+16, "+18", C.cyan);
+        addFloat(x+12, y-8, "+10s", PAL.clock);
+        addFloat(x+12, y+18, "+18", PAL.cyan);
+        shake(2);
         syncUI();
         return;
       }
 
       const base = 12;
       const streakBonus = Math.min(36, streak * 2);
-      const headBonus = headshot ? 10 : 0;
-      const perfectBonus = perfect ? 22 : 0;
+      const headBonus = headshot ? 12 : 0;
+      const perfectBonus = perfect ? 24 : 0;
       const pts = base + streakBonus + headBonus + perfectBonus;
 
       score += pts;
@@ -770,20 +950,21 @@
       targets.splice(hitIndex, 1);
 
       addImpact(cx, cy, perfect ? "perfect" : "hit");
-      addFloat(cx+14, cy, (perfect ? "PERFECT +" : "+") + pts, perfect ? C.perfect : C.cyan);
+      addFloat(cx+14, cy, (perfect ? "PERFECT +" : "+") + pts, perfect ? PAL.perfect : PAL.cyan);
+      shake(perfect ? 6 : 3);
 
     } else {
       misses += 1;
       streak = 0;
       addImpact(x,y,"miss");
-      addFloat(x+12, y, "MISS", C.orange);
+      addFloat(x+12, y, "MISS", PAL.orange);
+      shake(1.5);
     }
 
     if (score > high){
       high = score;
       localStorage.setItem("passing_lab_high", String(high));
     }
-
     syncUI();
   }
 
@@ -800,11 +981,13 @@
     const y = (e.clientY - r.top)  * (H / r.height);
 
     if (state === "menu"){
-      if (inRect(x,y,startBtn)) start();
-      else start();
+      start();
       return;
     }
-    if (state === "over"){ start(); return; }
+    if (state === "over"){
+      start();
+      return;
+    }
     if (state !== "play") return;
 
     doThrow(x,y);
@@ -821,7 +1004,6 @@
     }
   });
 
-  // Buttons
   btnStart.addEventListener("click", () => start());
   btnPause.addEventListener("click", () => { if (state==="play"||state==="pause") togglePause(); });
 
@@ -841,33 +1023,34 @@
     if (cdT > 0) cdT = Math.max(0, cdT - dt);
     if (qbThrowT > 0) qbThrowT = Math.max(0, qbThrowT - dt);
 
+    if (shakeT > 0){
+      shakeT = Math.max(0, shakeT - dt);
+      if (shakeT === 0) shakeP = 0;
+    }
+
     timeLeft -= dt;
     if (timeLeft <= 0){ timeLeft = 0; gameOver(); return; }
 
-    // Gentle ramp
     const progress = 1 - (timeLeft / START_TIME);
-    spawnEvery = clamp(SPAWN_BASE - progress*0.22, SPAWN_MIN, SPAWN_BASE);
+    spawnEvery = clamp(SPAWN_BASE - progress*0.25, SPAWN_MIN, SPAWN_BASE);
 
     spawnT += dt;
     if (spawnT >= spawnEvery){
       spawnT = 0;
       if (targets.length < MAX_TARGETS){
-        const clockChance = timeLeft <= 10 ? 0.22 : 0.12;
+        const clockChance = timeLeft <= 10 ? 0.24 : 0.12;
         if (Math.random() < clockChance) spawnClock();
         else spawnReceiver();
       }
     }
 
-    // Move targets
     for (let i=targets.length-1;i>=0;i--){
       const t = targets[i];
       t.x += t.dir * t.spd * dt;
 
-      if (t.type === "receiver"){
-        t.ringT += dt;
-      }
+      if (t.type === "receiver") t.ringT += dt;
 
-      if (t.x < -240 || t.x > W + 240){
+      if (t.x < -260 || t.x > W + 260){
         targets.splice(i,1);
         if (t.type === "receiver"){
           misses += 1;
@@ -881,93 +1064,39 @@
 
   // ===== Render =====
   function render(dt){
-    drawBackground();
+    // apply shake
+    let sx=0, sy=0;
+    if (shakeT > 0 && shakeP > 0){
+      const amt = shakeP * (shakeT/0.18);
+      sx = (Math.random()*2-1) * amt;
+      sy = (Math.random()*2-1) * amt;
+    }
 
-    // QB
-    drawQB(dt);
+    ctx.save();
+    ctx.translate(sx, sy);
 
-    // Targets
+    drawStadium(dt);
+    drawQB();
+
+    // targets
     for (const t of targets){
       if (t.type === "receiver") drawReceiver(t, dt);
       else drawClock(t, dt);
     }
 
-    // Effects
+    // FX
     drawTrails(dt);
     drawImpacts(dt);
     drawFloatText(dt);
 
-    // Crosshair
     drawCrosshair();
 
-    // Overlays
+    // overlays
     if (state === "menu") drawMenuOverlay();
     else if (state === "pause") drawPauseOverlay();
     else if (state === "over") drawOverOverlay();
-  }
 
-  // Effects render funcs
-  function drawTrails(dt){
-    for (let i=trails.length-1;i>=0;i--){
-      const tr = trails[i];
-      tr.t += dt;
-      const p = tr.t / tr.life;
-      if (p >= 1){ trails.splice(i,1); continue; }
-
-      ctx.globalAlpha = (1-p)*0.60;
-      ctx.strokeStyle = "rgba(255,255,255,0.80)";
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(tr.x0, tr.y0); ctx.lineTo(tr.x1, tr.y1); ctx.stroke();
-
-      ctx.globalAlpha = (1-p)*0.32;
-      ctx.strokeStyle = C.cyan;
-      ctx.lineWidth = 8;
-      ctx.beginPath(); ctx.moveTo(tr.x0, tr.y0); ctx.lineTo(tr.x1, tr.y1); ctx.stroke();
-
-      ctx.globalAlpha = 1;
-    }
-  }
-
-  function drawImpacts(dt){
-    for (let i=impacts.length-1;i>=0;i--){
-      const im = impacts[i];
-      im.t += dt;
-      const p = im.t / im.life;
-      if (p >= 1){ impacts.splice(i,1); continue; }
-
-      let col = C.cyan;
-      if (im.kind === "miss") col = C.orange;
-      if (im.kind === "perfect") col = C.perfect;
-      if (im.kind === "clock") col = C.clock;
-
-      const r = 10 + p*34;
-
-      ctx.globalAlpha = (1-p)*0.8;
-      ctx.strokeStyle = col;
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(im.x, im.y, r, 0, Math.PI*2); ctx.stroke();
-
-      ctx.globalAlpha = (1-p)*0.12;
-      ctx.fillStyle = col;
-      ctx.beginPath(); ctx.arc(im.x, im.y, r+14, 0, Math.PI*2); ctx.fill();
-
-      ctx.globalAlpha = 1;
-    }
-  }
-
-  function drawFloatText(dt){
-    for (let i=floatText.length-1;i>=0;i--){
-      const f = floatText[i];
-      f.t += dt;
-      const p = f.t / f.life;
-      if (p >= 1){ floatText.splice(i,1); continue; }
-
-      ctx.globalAlpha = (1-p)*0.95;
-      ctx.fillStyle = f.color;
-      ctx.font = "18px sans-serif";
-      ctx.fillText(f.text, f.x, f.y - p*34);
-      ctx.globalAlpha = 1;
-    }
+    ctx.restore();
   }
 
   // Main loop
@@ -977,11 +1106,11 @@
 
     if (state !== "pause") update(dt);
     render(dt);
-
     requestAnimationFrame(loop);
   }
 
-  // Init
+  // init
+  highEl.textContent = String(high);
   syncUI();
   requestAnimationFrame(loop);
 })();
