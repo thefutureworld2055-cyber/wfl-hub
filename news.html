@@ -5,32 +5,182 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WFL — News</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    .news-grid { display: grid; gap: 14px; }
+    .news-card {
+      background: #0b1220;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .meta { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .tag {
+      display:inline-block;
+      font-size:12px;
+      padding:2px 8px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      color:var(--muted);
+    }
+    .title { margin: 8px 0 6px; }
+    .actions { margin-top: 10px; display:flex; gap:10px; flex-wrap:wrap; }
+    .btn {
+      display:inline-block;
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #0f1623;
+      color: var(--text);
+      text-decoration: none;
+      font-weight: 900;
+      cursor: pointer;
+    }
+    .btn:hover { border-color: var(--link); }
+    .small { font-size:12px; color: var(--muted); }
+    .muted { color: var(--muted); }
+    hr.sep { border: 0; border-top: 1px solid var(--border); margin: 14px 0; }
+  </style>
 </head>
 
 <body>
   <header>
     <h1>WFL HUB</h1>
-<nav>
-  <a href="index.html">Home</a>
-  <a href="schedule.html">Schedule</a>
-  <a href="news.html">News</a>
-  <a href="quiz.html">Quiz</a>
-  <a href="fan-activity.html">Fan Activity</a>
-<a href="arcade.html">Arcade</a>
-</nav>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="arcade.html">Arcade</a>
+    </nav>
   </header>
 
   <main class="wrap">
     <div class="card">
-      <h2>League News</h2>
-      <p class="muted">Add new items at the top.</p>
+      <h2 id="pageTitle">League News</h2>
+      <p class="muted" id="pageSub">Posts update between games so the league stays alive.</p>
 
-      <ul>
-        <li><strong>Feb 9:</strong> Week Pulse posted — Dallas stays hot, Berlin survives another close one.</li>
-        <li><strong>Feb 7:</strong> Power Rankings update — top 3 reshuffle after a surprise upset.</li>
-        <li><strong>Feb 6:</strong> Fraud Watch poll is live — vote and share.</li>
-      </ul>
+      <!-- Article view (hidden unless ?id= is present) -->
+      <div id="articleView" style="display:none;"></div>
+
+      <!-- Feed view -->
+      <div id="feedView" class="news-grid"></div>
+
+      <p class="small" id="status"></p>
     </div>
   </main>
+
+<script>
+  const FEED_EL = document.getElementById("feedView");
+  const ARTICLE_EL = document.getElementById("articleView");
+  const STATUS_EL = document.getElementById("status");
+
+  const pageTitle = document.getElementById("pageTitle");
+  const pageSub = document.getElementById("pageSub");
+
+  function prettyDate(iso){
+    // expects YYYY-MM-DD
+    const [y,m,d] = (iso || "").split("-").map(Number);
+    if (!y || !m || !d) return iso || "";
+    const dt = new Date(y, m-1, d);
+    return dt.toLocaleDateString(undefined, { year:"numeric", month:"short", day:"numeric" });
+  }
+
+  function escapeHtml(s){
+    return String(s || "")
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  function setStatus(msg){ STATUS_EL.textContent = msg || ""; }
+
+  function renderFeed(items){
+    FEED_EL.innerHTML = "";
+    items.forEach(a => {
+      const card = document.createElement("div");
+      card.className = "news-card";
+
+      card.innerHTML = `
+        <div class="meta">
+          <span class="tag">${escapeHtml(a.category || "News")}</span>
+          <span class="small">${escapeHtml(prettyDate(a.date))}</span>
+        </div>
+        <h3 class="title">${escapeHtml(a.title)}</h3>
+        <p class="muted">${escapeHtml(a.summary || "")}</p>
+        <div class="actions">
+          <a class="btn" href="news.html?id=${encodeURIComponent(a.id)}">Read</a>
+        </div>
+      `;
+      FEED_EL.appendChild(card);
+    });
+  }
+
+  function renderArticle(a){
+    ARTICLE_EL.innerHTML = `
+      <div class="news-card">
+        <div class="meta">
+          <span class="tag">${escapeHtml(a.category || "News")}</span>
+          <span class="small">${escapeHtml(prettyDate(a.date))}</span>
+        </div>
+        <h3 class="title">${escapeHtml(a.title)}</h3>
+        <p class="muted">${escapeHtml(a.summary || "")}</p>
+        <hr class="sep" />
+        ${(a.body || []).map(p => `<p>${escapeHtml(p)}</p>`).join("")}
+        <div class="actions">
+          <a class="btn" href="news.html">← Back to News</a>
+        </div>
+      </div>
+    `;
+  }
+
+  async function main(){
+    try{
+      setStatus("Loading…");
+      const res = await fetch("articles.json", { cache: "no-store" });
+      if (!res.ok) throw new Error("Could not load articles.json");
+      const items = await res.json();
+
+      // newest first (assumes ISO date)
+      items.sort((a,b) => (b.date || "").localeCompare(a.date || ""));
+
+      const params = new URLSearchParams(location.search);
+      const id = params.get("id");
+
+      if (id) {
+        const article = items.find(x => x.id === id);
+        if (!article) {
+          pageTitle.textContent = "Article not found";
+          pageSub.textContent = "That post may have been removed or renamed.";
+          ARTICLE_EL.style.display = "block";
+          FEED_EL.style.display = "none";
+          ARTICLE_EL.innerHTML = `<div class="news-card">
+            <p class="muted">No article found for id: <strong>${escapeHtml(id)}</strong></p>
+            <a class="btn" href="news.html">← Back to News</a>
+          </div>`;
+        } else {
+          pageTitle.textContent = "League News";
+          pageSub.textContent = "Between-game updates that keep the league alive.";
+          ARTICLE_EL.style.display = "block";
+          FEED_EL.style.display = "none";
+          renderArticle(article);
+        }
+      } else {
+        ARTICLE_EL.style.display = "none";
+        FEED_EL.style.display = "grid";
+        renderFeed(items);
+      }
+
+      setStatus("");
+    } catch (e){
+      setStatus("❌ News failed to load. Make sure articles.json exists in the same folder as news.html.");
+      console.error(e);
+    }
+  }
+
+  main();
+</script>
 </body>
 </html>
