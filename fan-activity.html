@@ -8,6 +8,7 @@
   <style>
     .btn-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap:14px; }
     @media (max-width: 900px){ .btn-grid{ grid-template-columns: 1fr; } }
+
     .bigbtn{
       display:block;
       text-decoration:none;
@@ -22,6 +23,8 @@
     .bigbtn h3{ margin:0 0 6px 0; }
     .bigbtn p{ margin:0; color: var(--muted); }
     .tag{ display:inline-block; margin-top:10px; font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); color:var(--muted); }
+
+    .fineprint{ margin-top:12px; font-size:12px; color:var(--muted); }
   </style>
 </head>
 
@@ -29,13 +32,13 @@
   <header>
     <h1>WFL HUB</h1>
     <nav>
-  <a href="index.html">Home</a>
-  <a href="schedule.html">Schedule</a>
-  <a href="news.html">News</a>
-  <a href="quiz.html">Quiz</a>
-  <a href="fan-activity.html">Fan Activity</a>
-<a href="arcade.html">Arcade</a>
-</nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="arcade.html">Arcade</a>
+    </nav>
   </header>
 
   <main class="wrap">
@@ -62,7 +65,12 @@
           <span class="tag">2 minutes</span>
         </a>
       </div>
+
+      <p class="fineprint">
+        Submissions may log basic browser info (for debugging/moderation). No accounts or personal data required.
+      </p>
     </div>
+
     <div class="card">
       <h2>How this works</h2>
       <ul>
@@ -72,32 +80,5 @@
       </ul>
     </div>
   </main>
-  <script>
-const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzx5b529PDqA1wsGXFttHg82DLsTa-QnOxrbA9TzYw25-Z3ueaBN324sw4H1DxY4pyR/exec"; // must end with /exec
-const SECRET = "WFL_SECRET_123"; // must match Apps Script
-
-async function sendActivity(activity, choice, comment="") {
-  const payload = {
-    secret: SECRET,
-    activity,
-    fanName: "",   // you can add inputs later
-    fanTeam: "",
-    choice,
-    comment,
-    page: location.href,
-    userAgent: navigator.userAgent
-  };
-
-  const res = await fetch(WEB_APP_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload)
-  });
-
-  const data = await res.json();
-  if (data.ok) alert("✅ Submitted!");
-  else alert("❌ " + (data.error || "Error"));
-}
-</script>
 </body>
 </html>
