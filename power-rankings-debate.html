@@ -9,28 +9,30 @@
     .row{ display:flex; gap:10px; flex-wrap:wrap; }
     button{ padding:8px 12px; border-radius:12px; border:1px solid var(--border); background:#0f1623; color:var(--text); cursor:pointer; font-weight:900; }
     button:hover{ border-color: var(--link); }
-    select{ width:100%; padding:10px; border-radius:10px; border:1px solid var(--border); background:#0b1220; color:var(--text); }
+    select, input{ width:100%; padding:10px; border-radius:10px; border:1px solid var(--border); background:#0b1220; color:var(--text); }
     .small{ font-size:12px; color:var(--muted); }
+    .ok{ color:#7cffd1; font-weight:900; }
+    .err{ color:#f08a1a; font-weight:900; }
   </style>
 </head>
 
 <body>
   <header>
     <h1>WFL HUB</h1>
-<nav>
-  <a href="index.html">Home</a>
-  <a href="schedule.html">Schedule</a>
-  <a href="news.html">News</a>
-  <a href="quiz.html">Quiz</a>
-  <a href="fan-activity.html">Fan Activity</a>
-<a href="arcade.html">Arcade</a>
-</nav>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="arcade.html">Arcade</a>
+    </nav>
   </header>
 
   <main class="wrap">
     <div class="card">
       <h2>Power rankings debate</h2>
-      <p class="muted">React fast. No essays required. Saved on your device.</p>
+      <p class="muted">React fast. No essays required. Saved on your device + sent to WFL results.</p>
 
       <div class="embed-wrap">
         <h3 style="margin-top:0;">Current Top 10 (edit weekly)</h3>
@@ -41,7 +43,13 @@
       <div class="card" style="margin-top:14px;">
         <h3 style="margin-top:0;">Your reaction</h3>
 
-        <div class="row">
+        <label style="display:block; font-weight:900; margin:10px 0 6px;">Your name (optional)</label>
+        <input id="fanName" placeholder="Fan name" />
+
+        <label style="display:block; font-weight:900; margin:10px 0 6px;">Your favorite team (optional)</label>
+        <input id="fanTeam" placeholder="Dallas / Madrid / etc." />
+
+        <div class="row" style="margin-top:12px;">
           <button id="agree">Agree</button>
           <button id="mixed">Mixed</button>
           <button id="disagree">Disagree</button>
@@ -53,11 +61,19 @@
 
         <p style="margin-top:12px;"><strong>Your saved take:</strong></p>
         <p class="small" id="saved">None yet</p>
+
+        <p class="small" id="statusMsg"></p>
       </div>
     </div>
   </main>
 
 <script>
+  // =========================
+  // CONFIG
+  // =========================
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzx5b529PDqA1wsGXFttHg82DLsTa-QnOxrbA9TzYw25-Z3ueaBN324sw4H1DxY4pyR/exec";
+  const SECRET = "WFL_SECRET_123"; // must match Apps Script SECRET
+
   // EDIT THIS WEEKLY
   const TOP10 = [
     "Dallas","Madrid","Palermo","Berlin","San Fransisco",
@@ -65,9 +81,18 @@
   ];
 
   const KEY = "wfl_rankings_take";
+
   const top10El = document.getElementById("top10");
   const select = document.getElementById("tooHigh");
   const saved = document.getElementById("saved");
+  const statusMsg = document.getElementById("statusMsg");
+  const fanNameEl = document.getElementById("fanName");
+  const fanTeamEl = document.getElementById("fanTeam");
+
+  function setStatus(text, kind=""){
+    statusMsg.className = "small " + (kind === "ok" ? "ok" : kind === "err" ? "err" : "");
+    statusMsg.textContent = text || "";
+  }
 
   function renderTop10(){
     top10El.innerHTML = "";
@@ -90,26 +115,97 @@
     const data = JSON.parse(localStorage.getItem(KEY) || "null");
     if (!data) {
       saved.textContent = "None yet";
+      select.value = TOP10[0];
       return;
     }
     saved.textContent = `${data.reaction} | Too high: ${data.tooHigh}`;
     select.value = data.tooHigh || TOP10[0];
+
+    // load optional fan info if present
+    if (data.fanName) fanNameEl.value = data.fanName;
+    if (data.fanTeam) fanTeamEl.value = data.fanTeam;
   }
 
-  function save(reaction){
-    const data = { reaction, tooHigh: select.value };
+  function persistLocal(reaction){
+    const data = {
+      reaction,
+      tooHigh: select.value,
+      fanName: fanNameEl.value.trim(),
+      fanTeam: fanTeamEl.value.trim()
+    };
     localStorage.setItem(KEY, JSON.stringify(data));
     load();
+    return data;
   }
 
-  document.getElementById("agree").onclick = () => save("Agree");
-  document.getElementById("mixed").onclick = () => save("Mixed");
-  document.getElementById("disagree").onclick = () => save("Disagree");
-  document.getElementById("clear").onclick = () => { localStorage.removeItem(KEY); load(); };
+  async function sendActivity(data){
+    // sends to Google Sheet
+    setStatus("Sending to WFL…");
 
+    const payload = {
+      secret: SECRET,
+      activity: "Power Rankings Debate",
+      fanName: data.fanName || "",
+      fanTeam: data.fanTeam || "",
+      choice: `${data.reaction} | Too high: ${data.tooHigh}`,
+      comment: "", // leaving blank for this page
+      page: location.href,
+      userAgent: navigator.userAgent
+    };
+
+    try {
+      const res = await fetch(WEB_APP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+
+      const out = await res.json();
+      if (out.ok) setStatus("✅ Sent!", "ok");
+      else setStatus("❌ Error: " + (out.error || "Unknown"), "err");
+    } catch (e) {
+      setStatus("❌ Failed to send (network).", "err");
+    }
+  }
+
+  async function saveAndSend(reaction){
+    const data = persistLocal(reaction);
+    await sendActivity(data);
+  }
+
+  // Buttons
+  document.getElementById("agree").onclick = () => saveAndSend("Agree");
+  document.getElementById("mixed").onclick = () => saveAndSend("Mixed");
+  document.getElementById("disagree").onclick = () => saveAndSend("Disagree");
+
+  document.getElementById("clear").onclick = () => {
+    localStorage.removeItem(KEY);
+    load();
+    setStatus("Cleared locally.");
+  };
+
+  // If user changes dropdown and already has a saved reaction, update + send
   select.onchange = () => {
     const data = JSON.parse(localStorage.getItem(KEY) || "null");
-    if (data) save(data.reaction || "Mixed");
+    if (data && data.reaction) {
+      saveAndSend(data.reaction);
+    }
+  };
+
+  // Save fan fields locally (no submit yet)
+  fanNameEl.onchange = () => {
+    const data = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (data) {
+      data.fanName = fanNameEl.value.trim();
+      localStorage.setItem(KEY, JSON.stringify(data));
+    }
+  };
+  fanTeamEl.onchange = () => {
+    const data = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (data) {
+      data.fanTeam = fanTeamEl.value.trim();
+      localStorage.setItem(KEY, JSON.stringify(data));
+    }
   };
 
   renderTop10();
