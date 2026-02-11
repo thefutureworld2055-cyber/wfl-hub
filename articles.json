@@ -1,0 +1,38 @@
+[
+  {
+    "id": "pulse-feb-9",
+    "title": "Week Pulse — Dallas stays hot, Berlin survives",
+    "date": "2026-02-09",
+    "category": "Pulse",
+    "summary": "Dallas is surging at the right time, Berlin keeps escaping late, and Saint Catherine is slipping.",
+    "body": [
+      "Dallas is surging at the right time and looks like the team nobody wants to face.",
+      "Berlin keeps surviving late — it’s working, but the margin is getting thinner each week.",
+      "Saint Catherine’s season is slipping away and the pressure is rising fast."
+    ]
+  },
+  {
+    "id": "power-rankings-feb-7",
+    "title": "Power Rankings Update — top 3 reshuffle",
+    "date": "2026-02-07",
+    "category": "Rankings",
+    "summary": "A surprise result shakes up the top of the league. Fans are already debating the order.",
+    "body": [
+      "This week’s results forced a reshuffle at the top of the league.",
+      "Some teams are climbing on momentum, while others are holding on by a thread.",
+      "Hit Fan Activity to vote and debate who belongs in the top spots."
+    ]
+  },
+  {
+    "id": "fraud-watch-feb-6",
+    "title": "Fraud Watch is live — vote and share",
+    "date": "2026-02-06",
+    "category": "Fan Activity",
+    "summary": "Which team is getting too much hype? Drop your vote and see what the league thinks.",
+    "body": [
+      "Fraud Watch is live.",
+      "Vote for the team you think is the most overrated right now.",
+      "Then share your pick and see where the league lands."
+    ]
+  }
+]
