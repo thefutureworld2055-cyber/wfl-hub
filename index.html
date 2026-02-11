@@ -74,6 +74,15 @@
       padding-left: 18px;
     }
 
+    .btnlink {
+      display: inline-block;
+      margin-top: 8px;
+      color: #93c5fd;
+      text-decoration: none;
+      font-weight: 800;
+    }
+    .btnlink:hover { text-decoration: underline; }
+
     @media (max-width: 900px) {
       .grid {
         grid-template-columns: 1fr;
@@ -85,40 +94,55 @@
 <body>
   <header>
     <h1>WFL HUB</h1>
-   <nav>
-  <a href="index.html">Home</a>
-  <a href="schedule.html">Schedule</a>
-  <a href="news.html">News</a>
-  <a href="quiz.html">Quiz</a>
-  <a href="fan-activity.html">Fan Activity</a>
-<a href="arcade.html">Arcade</a>
-</nav>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="arcade.html">Arcade</a>
+    </nav>
   </header>
 
   <main>
+    <!-- Welcome / What is WFL -->
+    <div class="card">
+      <h2>Welcome to The WFL</h2>
+      <p class="muted">
+        Welcome to The World Football League (WFL), The Digital worldwide Football League. You can cheer for teams,
+        join a team, do the activities here on this site, and watch our games on YouTube. Have fun and enjoy the
+        Worldwide Gridiron Football league, The WFL.
+      </p>
+    </div>
+
     <div class="grid">
       <div>
+        <!-- Pulse = This Week -->
         <div class="card">
-          <h2>Week Pulse</h2>
-          <p class="muted">Short weekly recap — this is the heart of between-game activity.</p>
-          <p>
-            Dallas is surging at the right time, Berlin keeps surviving late,
-            and Saint Catherine’s season is slipping away.
-          </p>
+          <h2>This Week in the WFL (Pulse)</h2>
+          <p class="muted">Quick weekly recap — the easiest way to follow the story between games.</p>
+
+          <ul>
+            <li><strong>Momentum:</strong> Dallas is surging at the right time.</li>
+            <li><strong>Survivors:</strong> Berlin keeps surviving late.</li>
+            <li><strong>Trouble:</strong> Saint Catherine’s season is slipping away.</li>
+          </ul>
+
+          <a class="btnlink" href="news.html">Read the full Pulse →</a>
         </div>
 
         <div class="card">
-  <h2>News Updates</h2>
-  <p class="muted">We update this between games so the league stays alive.</p>
+          <h2>News Updates</h2>
+          <p class="muted">We update this between games so the league stays alive.</p>
 
-  <ul>
-    <li><strong>Feb 9:</strong> Week Pulse posted — Dallas stays hot, Berlin survives another close one.</li>
-    <li><strong>Feb 7:</strong> Power Rankings update — top 3 reshuffle after a surprise upset.</li>
-    <li><strong>Feb 6:</strong> Fraud Watch poll is live — vote in the Quiz tab / Discord.</li>
-  </ul>
+          <ul>
+            <li><strong>Feb 9:</strong> Week Pulse posted — Dallas stays hot, Berlin survives another close one.</li>
+            <li><strong>Feb 7:</strong> Power Rankings update — top 3 reshuffle after a surprise upset.</li>
+            <li><strong>Feb 6:</strong> Fraud Watch poll is live — vote in the Quiz tab / Discord.</li>
+          </ul>
 
-  <p><a href="news.html">View all news →</a></p>
-</div>
+          <a class="btnlink" href="news.html">View all news →</a>
+        </div>
       </div>
 
       <div>
@@ -126,19 +150,24 @@
           <h2>Game of the Week</h2>
           <p><strong>Berlin vs Madrid</strong></p>
           <p class="muted">Saturday Night</p>
-          <p>
-            A clash of styles that could reshape the standings.
-          </p>
+          <p>A clash of styles that could reshape the standings.</p>
         </div>
 
         <div class="card">
           <h2>Fan Activity</h2>
           <p class="muted">Give fans something to click.</p>
           <ul>
-            <li>Vote: Who’s overrated?</li>
-            <li>Predict the upset</li>
-            <li>Power rankings debate</li>
+            <li><a class="btnlink" href="vote-overrated.html">Vote: Who’s overrated?</a></li>
+            <li><a class="btnlink" href="predict-upset.html">Predict the upset</a></li>
+            <li><a class="btnlink" href="power-rankings-debate.html">Power rankings debate</a></li>
           </ul>
+          <a class="btnlink" href="fan-activity.html">All fan activities →</a>
+        </div>
+
+        <div class="card">
+          <h2>Arcade</h2>
+          <p class="muted">Play WFL mini-games.</p>
+          <a class="btnlink" href="arcade.html">Go to Arcade →</a>
         </div>
       </div>
     </div>
