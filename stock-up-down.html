@@ -1,0 +1,154 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WFL — Stock Up / Stock Down</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    select, input{
+      width:100%; padding:10px; border-radius:10px; border:1px solid var(--border);
+      background:#0b1220; color:var(--text);
+    }
+    button{ padding:10px 14px; border-radius:12px; border:1px solid var(--border); background:#0f1623; color:var(--text); cursor:pointer; font-weight:900; }
+    button:hover{ border-color: var(--link); }
+    .grid{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    @media (max-width: 900px){ .grid{ grid-template-columns: 1fr; } }
+    .small{ font-size:12px; color:var(--muted); }
+    .status{ margin-top:10px; font-size:12px; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>WFL HUB</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="arcade.html">Arcade</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <div class="card">
+      <h2>Stock Up / Stock Down</h2>
+      <p class="muted">Quick take: who’s rising and who’s falling?</p>
+
+      <label class="small" style="display:block; margin:10px 0 6px;">Optional nickname (not required)</label>
+      <input id="nick" placeholder="Example: Ark / AJ / WFLFan123 (optional)" maxlength="24">
+
+      <div class="grid" style="margin-top:12px;">
+        <div class="embed-wrap">
+          <h3 style="margin-top:0;">📈 Stock Up</h3>
+          <p class="small">Who looks better than last week?</p>
+          <select id="up"></select>
+        </div>
+
+        <div class="embed-wrap">
+          <h3 style="margin-top:0;">📉 Stock Down</h3>
+          <p class="small">Who’s slipping?</p>
+          <select id="down"></select>
+        </div>
+      </div>
+
+      <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="submit">Submit</button>
+        <button id="clear">Clear</button>
+      </div>
+
+      <div class="embed-wrap" style="margin-top:12px;">
+        <p><strong>Your saved take:</strong> <span id="saved">None yet</span></p>
+        <p class="status" id="status"></p>
+        <p class="small">Update weekly: edit the TEAMS list in the code.</p>
+      </div>
+    </div>
+  </main>
+
+<script>
+  // ====== SUBMISSION CONFIG (yours) ======
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzx5b529PDqA1wsGXFttHg82DLsTa-QnOxrbA9TzYw25-Z3ueaBN324sw4H1DxY4pyR/exec";
+  const SECRET = "WFL_SECRET_123";
+
+  async function sendActivity(activity, choice, comment="") {
+    const payload = {
+      secret: SECRET,
+      activity,
+      fanName: document.getElementById("nick").value || "",
+      fanTeam: "",
+      choice,
+      comment,
+      page: location.href,
+      userAgent: navigator.userAgent
+    };
+    try{
+      const res = await fetch(WEB_APP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      return data && data.ok;
+    } catch(e){
+      return false;
+    }
+  }
+
+  // ====== EDIT THIS WEEKLY ======
+  const TEAMS = [
+    "New Jerusalem","Jerusalem","Stockholm","Springfield","San Francisco","Tombstone","Wallerock","Dallas",
+    "Phoenix","Houston","Tampa","Los Angeles","Boise","Denver","Miami","Helsinki","Warsaw","Zurich","Berlin","Oslo",
+    "Sarajevo","Atlanta","New England","Seattle","Liverpool","Saint Catherine","Malmo","Lisbon","Madrid","Nicosia",
+    "New Jerusalem City","Paris","Cork","Dublin","New York","Arusha","Medina","Lyon","Palermo","Kiev"
+  ];
+
+  const KEY = "wfl_stock_up_down";
+  const up = document.getElementById("up");
+  const down = document.getElementById("down");
+  const saved = document.getElementById("saved");
+  const status = document.getElementById("status");
+
+  function setStatus(msg){ status.textContent = msg || ""; }
+
+  function fillSelect(sel){
+    sel.innerHTML = "";
+    TEAMS.forEach(t=>{
+      const opt = document.createElement("option");
+      opt.value = t; opt.textContent = t;
+      sel.appendChild(opt);
+    });
+  }
+
+  function load(){
+    const data = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (!data){ saved.textContent = "None yet"; return; }
+    saved.textContent = `Stock Up: ${data.up} | Stock Down: ${data.down}`;
+    if (data.up) up.value = data.up;
+    if (data.down) down.value = data.down;
+  }
+
+  async function submit(){
+    const data = { up: up.value, down: down.value };
+    localStorage.setItem(KEY, JSON.stringify(data));
+    load();
+
+    const choice = `Up: ${data.up} | Down: ${data.down}`;
+    setStatus("Submitting…");
+    const ok = await sendActivity("Stock Up / Stock Down", choice, "");
+    setStatus(ok ? "✅ Submitted to WFL results." : "⚠️ Saved on your device (submit failed).");
+  }
+
+  document.getElementById("submit").onclick = submit;
+  document.getElementById("clear").onclick = () => {
+    localStorage.removeItem(KEY);
+    setStatus("");
+    load();
+  };
+
+  fillSelect(up);
+  fillSelect(down);
+  load();
+</script>
+</body>
+</html>
