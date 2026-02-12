@@ -1,0 +1,715 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shut the Gap: Wayne Robinson</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    .hudrow { display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .panel { border:1px solid var(--border); background:#0b1220; border-radius:14px; padding:12px; }
+    .btn {
+      display:inline-block; padding:10px 14px; border-radius:12px;
+      border:1px solid var(--border); background:#0f1623; color:var(--text);
+      text-decoration:none; font-weight:900; cursor:pointer;
+    }
+    .btn:hover{ border-color: var(--link); }
+    .muted{ color: var(--muted); }
+    canvas { width:100%; height:auto; border:1px solid var(--border); border-radius:14px; background:#050912; display:block; }
+    .small{ font-size:12px; color:var(--muted); }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .tag{ display:inline-block; font-size:12px; padding:2px 8px; border:1px solid var(--border); border-radius:999px; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>WFL HUB</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="arcade.html">Arcade</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <div class="panel">
+      <div class="hudrow">
+        <div>
+          <h2 style="margin:0 0 6px 0;">Shut the Gap: Wayne Robinson</h2>
+          <div class="row">
+            <span class="tag">Defense</span>
+            <span class="tag">3-Lane Read</span>
+            <span class="tag">Streak + Hit Stick</span>
+          </div>
+          <p class="muted" style="margin:8px 0 0;">Read the ball carrier, slide into the lane, and make the stop. Miss 3 times and it’s over.</p>
+        </div>
+
+        <div class="row">
+          <button class="btn" id="restartBtn">Restart</button>
+          <button class="btn" id="shareBtn">Share Score</button>
+        </div>
+      </div>
+
+      <div class="row" style="justify-content:space-between;">
+        <div class="row">
+          <div class="small"><strong>Score:</strong> <span id="score">0</span></div>
+          <div class="small"><strong>Best:</strong> <span id="best">0</span></div>
+          <div class="small"><strong>Lives:</strong> <span id="lives">3</span></div>
+          <div class="small"><strong>Streak:</strong> <span id="streak">0</span></div>
+        </div>
+        <div class="small">
+          <strong>Hit Stick:</strong> <span id="hitPct">0%</span>
+          <span class="muted">(Space)</span>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <canvas id="game" width="960" height="540"></canvas>
+      </div>
+
+      <p class="small" style="margin:10px 0 0;">
+        Controls: <strong>A/D</strong> or <strong>←/→</strong> to slide lanes • <strong>Space</strong> for Hit Stick when full • Click/tap a lane on mobile.
+      </p>
+    </div>
+  </main>
+
+<script>
+(() => {
+  // =========================
+  // CONFIG
+  // =========================
+  const canvas = document.getElementById("game");
+  const ctx = canvas.getContext("2d");
+
+  const ui = {
+    score: document.getElementById("score"),
+    best: document.getElementById("best"),
+    lives: document.getElementById("lives"),
+    streak: document.getElementById("streak"),
+    hitPct: document.getElementById("hitPct"),
+    restartBtn: document.getElementById("restartBtn"),
+    shareBtn: document.getElementById("shareBtn"),
+  };
+
+  const BEST_KEY = "wfl_robinson_best";
+
+  // Lane X positions (centered)
+  function laneX(i){
+    const w = canvas.width;
+    const left = w * 0.24;
+    const mid  = w * 0.50;
+    const right= w * 0.76;
+    return [left, mid, right][i];
+  }
+
+  // Game state
+  let state = "menu"; // menu | play | over
+  let score = 0;
+  let best = Number(localStorage.getItem(BEST_KEY) || "0");
+  let lives = 3;
+  let streak = 0;
+
+  // Hit stick meter (0..1)
+  let hit = 0;
+  let hitActiveTimer = 0; // seconds
+
+  // Robinson (pixel-ish)
+  const rob = {
+    lane: 1,
+    x: laneX(1),
+    targetX: laneX(1),
+    y: 430,
+    vx: 0,
+  };
+
+  // Wave data
+  let wave = null;
+  let timeToReveal = 0;
+  let revealTimer = 0;
+  let spawnCooldown = 0;
+
+  // Difficulty scaling
+  let speedBase = 160;      // px/s
+  let revealTime = 0.70;    // seconds where ball hint is visible
+  let switchChance = 0.10;  // chance ballcarrier switches lanes mid-run (harder later)
+
+  // Visual helpers
+  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+
+  function setHUD(){
+    ui.score.textContent = score;
+    ui.best.textContent = best;
+    ui.lives.textContent = lives;
+    ui.streak.textContent = streak;
+    ui.hitPct.textContent = Math.round(hit * 100) + "%";
+  }
+
+  // -------------------------
+  // Wave generator
+  // -------------------------
+  function newWave(){
+    // choose ball lane, place blockers other lanes
+    const ballLane = Math.floor(Math.random() * 3);
+    const lanes = [0,1,2];
+
+    // 3 players: one per lane
+    const players = lanes.map(l => ({
+      lane: l,
+      x: laneX(l),
+      y: -80,
+      isBall: l === ballLane,
+      // visual tell parameters
+      tellPulse: 0,
+      // fake switch
+      switched: false,
+    }));
+
+    // reveal phase: show a subtle tell briefly
+    revealTimer = revealTime;
+    timeToReveal = revealTime;
+
+    wave = {
+      players,
+      ballLane,
+      speed: speedBase + Math.min(220, score * 6), // ramp
+      // if switching, do it around midfield
+      switchAtY: canvas.height * 0.28 + Math.random() * canvas.height * 0.22,
+      didSwitch: false,
+    };
+  }
+
+  function resetGame(){
+    score = 0;
+    lives = 3;
+    streak = 0;
+    hit = 0;
+    hitActiveTimer = 0;
+
+    speedBase = 160;
+    revealTime = 0.70;
+    switchChance = 0.10;
+
+    rob.lane = 1;
+    rob.x = laneX(1);
+    rob.targetX = laneX(1);
+    rob.y = 430;
+
+    wave = null;
+    spawnCooldown = 0.3;
+
+    state = "menu";
+    setHUD();
+  }
+
+  function startGame(){
+    score = 0;
+    lives = 3;
+    streak = 0;
+    hit = 0;
+    hitActiveTimer = 0;
+
+    wave = null;
+    spawnCooldown = 0.2;
+
+    state = "play";
+    setHUD();
+  }
+
+  function gameOver(){
+    state = "over";
+    if (score > best){
+      best = score;
+      localStorage.setItem(BEST_KEY, String(best));
+    }
+    setHUD();
+  }
+
+  // -------------------------
+  // Input
+  // -------------------------
+  function setLane(l){
+    rob.lane = clamp(l, 0, 2);
+    rob.targetX = laneX(rob.lane);
+  }
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowLeft" || e.key.toLowerCase() === "a") setLane(rob.lane - 1);
+    if (e.key === "ArrowRight" || e.key.toLowerCase() === "d") setLane(rob.lane + 1);
+
+    if (e.key === " "){
+      if (state === "menu") startGame();
+      else if (state === "over") startGame();
+      else if (state === "play" && hit >= 1){
+        hit = 0;
+        hitActiveTimer = 1.75; // seconds of auto-stop power
+      }
+    }
+
+    if (e.key === "Enter"){
+      if (state === "menu" || state === "over") startGame();
+    }
+  });
+
+  canvas.addEventListener("pointerdown", (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+
+    if (state === "menu") { startGame(); return; }
+    if (state === "over") { startGame(); return; }
+
+    // Tap/click lane
+    const lanesX = [laneX(0), laneX(1), laneX(2)];
+    let bestLane = 0, bestDist = Infinity;
+    lanesX.forEach((lx, i) => {
+      const d = Math.abs(x - lx);
+      if (d < bestDist){ bestDist = d; bestLane = i; }
+    });
+    setLane(bestLane);
+  });
+
+  ui.restartBtn.addEventListener("click", () => startGame());
+
+  ui.shareBtn.addEventListener("click", async () => {
+    const text = `I scored ${score} in "Shut the Gap: Wayne Robinson" on the WFL Arcade! Can you beat it?`;
+    try{
+      if (navigator.share){
+        await navigator.share({ title: "WFL Arcade Score", text, url: location.href });
+      } else {
+        await navigator.clipboard.writeText(text + " " + location.href);
+        alert("Copied share text to clipboard!");
+      }
+    } catch (err){
+      // user cancelled share, ignore
+    }
+  });
+
+  // -------------------------
+  // Gameplay events
+  // -------------------------
+  function resolveContact(){
+    // Find the ballcarrier lane at contact moment (after possible switch)
+    const ball = wave.players.find(p => p.isBall);
+    const ballLane = ball.lane;
+
+    // If Hit Stick active: always stop the play
+    if (hitActiveTimer > 0){
+      score += 2;          // reward power use
+      streak += 1;
+      hit = clamp(hit + 0.15, 0, 1);
+      setHUD();
+      wave = null;
+      spawnCooldown = 0.25;
+      return;
+    }
+
+    if (rob.lane === ballLane){
+      // tackle
+      score += 1;
+      streak += 1;
+
+      // build hit stick faster with streak
+      const gain = 0.20 + Math.min(0.20, streak * 0.02);
+      hit = clamp(hit + gain, 0, 1);
+    } else {
+      // blocked / miss
+      lives -= 1;
+      streak = 0;
+      hit = clamp(hit - 0.20, 0, 1);
+      if (lives <= 0){
+        setHUD();
+        gameOver();
+        return;
+      }
+    }
+
+    setHUD();
+
+    // Increase difficulty gradually
+    if (score % 5 === 0){
+      speedBase += 12;
+      revealTime = Math.max(0.45, revealTime - 0.04);
+      switchChance = Math.min(0.42, switchChance + 0.04);
+    }
+
+    wave = null;
+    spawnCooldown = 0.25;
+  }
+
+  // -------------------------
+  // Rendering (SNES-ish pixel vibe)
+  // -------------------------
+  function drawStadium(){
+    const w = canvas.width, h = canvas.height;
+
+    // sky/roof
+    ctx.fillStyle = "#050912";
+    ctx.fillRect(0,0,w,h);
+
+    // crowd tiers
+    ctx.fillStyle = "#0c1220";
+    ctx.fillRect(0, 0, w, h*0.33);
+
+    // crowd dots
+    for (let y=12; y< h*0.33; y+=6){
+      for (let x=8; x<w; x+=10){
+        const r = ((x+y) % 3 === 0) ? 2 : 1;
+        ctx.fillStyle = ((x*y) % 5 === 0) ? "#93c5fd" : ((x+y) % 4 === 0 ? "#f59e0b" : "#e6edf3");
+        ctx.globalAlpha = 0.35;
+        ctx.fillRect(x, y, r, r);
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // field
+    ctx.fillStyle = "#071a12";
+    ctx.fillRect(0, h*0.33, w, h*0.67);
+
+    // field stripes
+    for (let i=0; i<10; i++){
+      ctx.fillStyle = (i%2===0) ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0)";
+      ctx.fillRect(0, h*0.33 + i*(h*0.067), w, h*0.067);
+    }
+
+    // hash marks + yard lines
+    ctx.strokeStyle = "rgba(255,255,255,0.10)";
+    ctx.lineWidth = 2;
+    for (let y=h*0.40; y<h; y+=40){
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+
+      // hashes
+      ctx.fillStyle = "rgba(255,255,255,0.10)";
+      for (let x= w*0.20; x<=w*0.80; x+=18){
+        ctx.fillRect(x, y-1, 6, 2);
+      }
+    }
+
+    // lane guides
+    ctx.strokeStyle = "rgba(147,197,253,0.12)";
+    ctx.lineWidth = 2;
+    [laneX(0), laneX(1), laneX(2)].forEach(lx => {
+      ctx.beginPath();
+      ctx.moveTo(lx, h*0.33);
+      ctx.lineTo(lx, h);
+      ctx.stroke();
+    });
+
+    // tackle line
+    ctx.strokeStyle = "rgba(245,158,11,0.28)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(w*0.12, 410);
+    ctx.lineTo(w*0.88, 410);
+    ctx.stroke();
+  }
+
+  function drawPlayerPixel(x, y, skin="#5b3a1f", jersey="#b46bff", helmet="#5b2aa7", accents="#f59e0b", number="52", isRobinson=false){
+    // Pixel-y body (simple rectangles)
+    // scale
+    const s = 3.0;
+
+    // shadow
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(x-16*s, y+18*s, 32*s, 6*s);
+
+    // legs
+    ctx.fillStyle = "#e6edf3";
+    ctx.fillRect(x-8*s, y+6*s, 6*s, 14*s);
+    ctx.fillRect(x+2*s, y+6*s, 6*s, 14*s);
+
+    // pants belt line
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.fillRect(x-10*s, y+6*s, 20*s, 2*s);
+
+    // torso
+    ctx.fillStyle = jersey;
+    ctx.fillRect(x-12*s, y-10*s, 24*s, 18*s);
+
+    // shoulder accents
+    ctx.fillStyle = accents;
+    ctx.fillRect(x-12*s, y-10*s, 6*s, 6*s);
+    ctx.fillRect(x+6*s, y-10*s, 6*s, 6*s);
+
+    // arms
+    ctx.fillStyle = jersey;
+    ctx.fillRect(x-18*s, y-8*s, 6*s, 14*s);
+    ctx.fillRect(x+12*s, y-8*s, 6*s, 14*s);
+
+    // hands
+    ctx.fillStyle = skin;
+    ctx.fillRect(x-18*s, y+6*s, 6*s, 4*s);
+    ctx.fillRect(x+12*s, y+6*s, 6*s, 4*s);
+
+    // helmet
+    ctx.fillStyle = helmet;
+    ctx.fillRect(x-11*s, y-22*s, 22*s, 12*s);
+
+    // facemask
+    ctx.fillStyle = "rgba(230,237,243,0.75)";
+    ctx.fillRect(x-12*s, y-18*s, 24*s, 2*s);
+    ctx.fillRect(x-10*s, y-16*s, 20*s, 2*s);
+
+    // face
+    ctx.fillStyle = skin;
+    ctx.fillRect(x-7*s, y-18*s, 14*s, 6*s);
+
+    // number
+    ctx.fillStyle = "#0b1220";
+    ctx.globalAlpha = 0.45;
+    ctx.fillRect(x-6*s, y-3*s, 12*s, 10*s);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#e6edf3";
+    ctx.font = "bold 14px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText(number, x, y+6*s);
+
+    if (isRobinson){
+      // small LB "X Factor" outline
+      ctx.strokeStyle = "rgba(147,197,253,0.25)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x-13*s, y-23*s, 26*s, 46*s);
+    }
+  }
+
+  function drawOffense(p, isReveal){
+    const x = p.x, y = p.y;
+    // Make blockers look bulkier + different helmet
+    const jersey = p.isBall ? "#ef4444" : "#1f3b7a";
+    const helmet = "#111827";
+    const accents = p.isBall ? "#f59e0b" : "#93c5fd";
+    const skin = "#3b2a1a";
+
+    // Ball carrier tell (brief)
+    if (p.isBall && isReveal){
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = "rgba(245,158,11,0.55)";
+      ctx.beginPath();
+      ctx.arc(x, y-20, 28, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    // If ball carrier, draw a tiny ball
+    if (p.isBall){
+      ctx.fillStyle = "#8b5a2b";
+      ctx.fillRect(x+18, y-2, 12, 6);
+      ctx.fillStyle = "rgba(230,237,243,0.6)";
+      ctx.fillRect(x+20, y-1, 2, 4);
+    }
+
+    // Number hints (small)
+    const num = p.isBall ? "22" : "77";
+    drawPlayerPixel(x, y, skin, jersey, helmet, accents, num, false);
+
+    // If switched mid-run, leave a small streak
+    if (p.switched){
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = "rgba(147,197,253,0.6)";
+      ctx.fillRect(x-8, y+40, 16, 4);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawRobinson(){
+    // Robinson: dark jersey w/ orange accent vibe; LB identity
+    drawPlayerPixel(rob.x, rob.y, "#4a2f1a", "#7c3aed", "#5b2aa7", "#f59e0b", "54", true);
+
+    // Hit-stick glow if ready/active
+    if (hit >= 1 || hitActiveTimer > 0){
+      ctx.globalAlpha = 0.25 + (hitActiveTimer > 0 ? 0.25 : 0);
+      ctx.fillStyle = "rgba(245,158,11,0.75)";
+      ctx.beginPath();
+      ctx.arc(rob.x, rob.y-20, 45, 0, Math.PI*2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  function drawMenu(){
+    drawStadium();
+
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    ctx.fillStyle = "#e6edf3";
+    ctx.textAlign = "center";
+    ctx.font = "900 40px system-ui";
+    ctx.fillText("Shut the Gap", canvas.width/2, canvas.height/2 - 50);
+
+    ctx.font = "800 20px system-ui";
+    ctx.fillStyle = "#93c5fd";
+    ctx.fillText("Wayne Robinson", canvas.width/2, canvas.height/2 - 20);
+
+    ctx.font = "16px system-ui";
+    ctx.fillStyle = "rgba(230,237,243,0.9)";
+    ctx.fillText("Read the ball carrier. Slide into the lane. Make the stop.", canvas.width/2, canvas.height/2 + 18);
+
+    ctx.fillStyle = "#f59e0b";
+    ctx.font = "900 18px system-ui";
+    ctx.fillText("Press SPACE or click to start", canvas.width/2, canvas.height/2 + 60);
+  }
+
+  function drawGameOver(){
+    drawStadium();
+
+    ctx.fillStyle = "rgba(0,0,0,0.62)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    ctx.fillStyle = "#ef4444";
+    ctx.textAlign = "center";
+    ctx.font = "900 44px system-ui";
+    ctx.fillText("STOPPED OUT", canvas.width/2, canvas.height/2 - 55);
+
+    ctx.fillStyle = "#e6edf3";
+    ctx.font = "900 22px system-ui";
+    ctx.fillText(`Score: ${score}   •   Best: ${best}`, canvas.width/2, canvas.height/2 - 15);
+
+    ctx.fillStyle = "#93c5fd";
+    ctx.font = "16px system-ui";
+    ctx.fillText("Press ENTER or click to play again", canvas.width/2, canvas.height/2 + 28);
+  }
+
+  // -------------------------
+  // Update loop
+  // -------------------------
+  let last = performance.now();
+  function tick(now){
+    const dt = Math.min(0.033, (now - last) / 1000);
+    last = now;
+
+    // Smooth slide Robinson
+    const accel = 2200;
+    const maxV = 900;
+
+    const dx = rob.targetX - rob.x;
+    rob.vx += clamp(dx * 8, -accel, accel) * dt;
+    rob.vx *= Math.pow(0.12, dt); // damping
+    rob.vx = clamp(rob.vx, -maxV, maxV);
+    rob.x += rob.vx * dt;
+
+    // Clamp within field lanes
+    rob.x = clamp(rob.x, canvas.width*0.10, canvas.width*0.90);
+
+    if (state === "play"){
+      // hit stick active timer
+      if (hitActiveTimer > 0){
+        hitActiveTimer -= dt;
+        if (hitActiveTimer < 0) hitActiveTimer = 0;
+      }
+
+      // spawn new wave
+      spawnCooldown -= dt;
+      if (!wave && spawnCooldown <= 0){
+        newWave();
+      }
+
+      if (wave){
+        // reveal phase countdown
+        if (revealTimer > 0){
+          revealTimer -= dt;
+          revealTimer = Math.max(0, revealTimer);
+        } else {
+          // Move players
+          const sp = wave.speed * dt;
+          wave.players.forEach(p => {
+            p.y += sp;
+
+            // Switch mechanic: ballcarrier may switch lanes once mid-run
+            if (!wave.didSwitch && p.isBall && p.y >= wave.switchAtY){
+              if (Math.random() < switchChance){
+                // swap lanes with a blocker
+                const blockers = wave.players.filter(x => !x.isBall);
+                const swapWith = blockers[Math.floor(Math.random()*blockers.length)];
+                const oldLane = p.lane;
+
+                p.lane = swapWith.lane;
+                swapWith.lane = oldLane;
+
+                p.x = laneX(p.lane);
+                swapWith.x = laneX(swapWith.lane);
+
+                p.switched = true;
+                wave.didSwitch = true;
+              }
+            }
+          });
+
+          // Contact when any player reaches tackle line (they arrive together)
+          const reach = wave.players.some(p => p.y >= 410);
+          if (reach){
+            resolveContact();
+          }
+        }
+      }
+    }
+
+    // Render
+    if (state === "menu"){
+      drawMenu();
+    } else if (state === "over"){
+      drawGameOver();
+    } else {
+      drawStadium();
+
+      // On-field HUD banner
+      ctx.fillStyle = "rgba(0,0,0,0.28)";
+      ctx.fillRect(0, canvas.height*0.33, canvas.width, 34);
+
+      ctx.fillStyle = "rgba(230,237,243,0.88)";
+      ctx.font = "900 14px system-ui";
+      ctx.textAlign = "left";
+      ctx.fillText(`SCORE ${score}   •   LIVES ${lives}   •   STREAK ${streak}`, 16, canvas.height*0.33 + 22);
+
+      // Hit-stick banner
+      ctx.textAlign = "right";
+      const ready = (hit >= 1) ? "HIT STICK READY (SPACE)" : `Hit Stick ${Math.round(hit*100)}%`;
+      const glow = (hit >= 1 || hitActiveTimer > 0);
+      ctx.fillStyle = glow ? "rgba(245,158,11,0.95)" : "rgba(147,197,253,0.85)";
+      ctx.fillText(ready, canvas.width - 16, canvas.height*0.33 + 22);
+
+      // Draw wave players
+      if (wave){
+        const isReveal = revealTimer > 0;
+        wave.players.forEach(p => drawOffense(p, isReveal));
+      }
+
+      // Draw Robinson
+      drawRobinson();
+
+      // Small hint text
+      if (wave && revealTimer > 0){
+        ctx.textAlign = "center";
+        ctx.fillStyle = "rgba(230,237,243,0.85)";
+        ctx.font = "900 14px system-ui";
+        ctx.fillText("READ THE BALL CARRIER!", canvas.width/2, 120);
+      }
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  // Buttons
+  ui.restartBtn.addEventListener("click", () => {
+    if (state === "menu" || state === "over") startGame();
+    else startGame();
+  });
+
+  // Click on canvas starts too (already handled in pointerdown)
+  // Initialize
+  resetGame();
+  setHUD();
+  requestAnimationFrame(tick);
+
+  // If users click page first time, keep best visible
+  ui.best.textContent = best;
+
+})();
+</script>
+</body>
+</html>
