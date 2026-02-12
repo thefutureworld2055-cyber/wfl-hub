@@ -1,0 +1,163 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WFL — Build the Power Rankings</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    select, input{
+      width:100%; padding:10px; border-radius:10px; border:1px solid var(--border);
+      background:#0b1220; color:var(--text);
+    }
+    button{ padding:10px 14px; border-radius:12px; border:1px solid var(--border); background:#0f1623; color:var(--text); cursor:pointer; font-weight:900; }
+    button:hover{ border-color: var(--link); }
+    .grid{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; }
+    @media (max-width: 900px){ .grid{ grid-template-columns: 1fr; } }
+    .small{ font-size:12px; color:var(--muted); }
+    .status{ margin-top:10px; font-size:12px; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>WFL HUB</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="arcade.html">Arcade</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <div class="card">
+      <h2>Build the Power Rankings</h2>
+      <p class="muted">No full top-10 required. Just 3 quick picks.</p>
+
+      <label class="small" style="display:block; margin:10px 0 6px;">Optional nickname (not required)</label>
+      <input id="nick" placeholder="Example: Ark / AJ / WFLFan123 (optional)" maxlength="24">
+
+      <div class="grid" style="margin-top:12px;">
+        <div class="embed-wrap">
+          <h3 style="margin-top:0;">🏆 Best Team</h3>
+          <select id="bestTeam"></select>
+        </div>
+
+        <div class="embed-wrap">
+          <h3 style="margin-top:0;">🔥 Best Offense</h3>
+          <select id="bestOff"></select>
+        </div>
+
+        <div class="embed-wrap">
+          <h3 style="margin-top:0;">🛡 Best Defense</h3>
+          <select id="bestDef"></select>
+        </div>
+      </div>
+
+      <div style="margin-top:12px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="submit">Submit</button>
+        <button id="clear">Clear</button>
+      </div>
+
+      <div class="embed-wrap" style="margin-top:12px;">
+        <p><strong>Your saved picks:</strong> <span id="saved">None yet</span></p>
+        <p class="status" id="status"></p>
+      </div>
+    </div>
+  </main>
+
+<script>
+  // ====== SUBMISSION CONFIG (yours) ======
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzx5b529PDqA1wsGXFttHg82DLsTa-QnOxrbA9TzYw25-Z3ueaBN324sw4H1DxY4pyR/exec";
+  const SECRET = "WFL_SECRET_123";
+
+  async function sendActivity(activity, choice, comment="") {
+    const payload = {
+      secret: SECRET,
+      activity,
+      fanName: document.getElementById("nick").value || "",
+      fanTeam: "",
+      choice,
+      comment,
+      page: location.href,
+      userAgent: navigator.userAgent
+    };
+    try{
+      const res = await fetch(WEB_APP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      return data && data.ok;
+    } catch(e){
+      return false;
+    }
+  }
+
+  // ====== TEAM LIST ======
+  const TEAMS = [
+    "New Jerusalem","Jerusalem","Stockholm","Springfield","San Francisco","Tombstone","Wallerock","Dallas",
+    "Phoenix","Houston","Tampa","Los Angeles","Boise","Denver","Miami","Helsinki","Warsaw","Zurich","Berlin","Oslo",
+    "Sarajevo","Atlanta","New England","Seattle","Liverpool","Saint Catherine","Malmo","Lisbon","Madrid","Nicosia",
+    "New Jerusalem City","Paris","Cork","Dublin","New York","Arusha","Medina","Lyon","Palermo","Kiev"
+  ];
+
+  const KEY = "wfl_build_rankings";
+  const sBestTeam = document.getElementById("bestTeam");
+  const sBestOff = document.getElementById("bestOff");
+  const sBestDef = document.getElementById("bestDef");
+  const saved = document.getElementById("saved");
+  const status = document.getElementById("status");
+
+  function setStatus(msg){ status.textContent = msg || ""; }
+
+  function fill(sel){
+    sel.innerHTML = "";
+    TEAMS.forEach(t=>{
+      const opt = document.createElement("option");
+      opt.value = t; opt.textContent = t;
+      sel.appendChild(opt);
+    });
+  }
+
+  function load(){
+    const data = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (!data){ saved.textContent = "None yet"; return; }
+    saved.textContent = `Best: ${data.bestTeam} | Offense: ${data.bestOff} | Defense: ${data.bestDef}`;
+    if (data.bestTeam) sBestTeam.value = data.bestTeam;
+    if (data.bestOff) sBestOff.value = data.bestOff;
+    if (data.bestDef) sBestDef.value = data.bestDef;
+  }
+
+  async function submit(){
+    const data = {
+      bestTeam: sBestTeam.value,
+      bestOff: sBestOff.value,
+      bestDef: sBestDef.value
+    };
+    localStorage.setItem(KEY, JSON.stringify(data));
+    load();
+
+    const choice = `Best Team: ${data.bestTeam} | Best Offense: ${data.bestOff} | Best Defense: ${data.bestDef}`;
+    setStatus("Submitting…");
+    const ok = await sendActivity("Build the Power Rankings", choice, "");
+    setStatus(ok ? "✅ Submitted to WFL results." : "⚠️ Saved on your device (submit failed).");
+  }
+
+  document.getElementById("submit").onclick = submit;
+  document.getElementById("clear").onclick = () => {
+    localStorage.removeItem(KEY);
+    setStatus("");
+    load();
+  };
+
+  fill(sBestTeam);
+  fill(sBestOff);
+  fill(sBestDef);
+  load();
+</script>
+</body>
+</html>
