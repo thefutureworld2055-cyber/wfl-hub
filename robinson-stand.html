@@ -117,7 +117,7 @@
   let hit = 0;
   let hitActiveTimer = 0; // seconds
 
-  // Robinson (pixel-ish)
+  // Robinson
   const rob = {
     lane: 1,
     x: laneX(1),
@@ -128,7 +128,6 @@
 
   // Wave data
   let wave = null;
-  let timeToReveal = 0;
   let revealTimer = 0;
   let spawnCooldown = 0;
 
@@ -137,7 +136,7 @@
   let revealTime = 0.70;    // seconds where ball hint is visible
   let switchChance = 0.10;  // chance ballcarrier switches lanes mid-run (harder later)
 
-  // Visual helpers
+  // Helpers
   function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
 
   function setHUD(){
@@ -152,31 +151,22 @@
   // Wave generator
   // -------------------------
   function newWave(){
-    // choose ball lane, place blockers other lanes
     const ballLane = Math.floor(Math.random() * 3);
     const lanes = [0,1,2];
 
-    // 3 players: one per lane
     const players = lanes.map(l => ({
       lane: l,
       x: laneX(l),
       y: -80,
       isBall: l === ballLane,
-      // visual tell parameters
-      tellPulse: 0,
-      // fake switch
       switched: false,
     }));
 
-    // reveal phase: show a subtle tell briefly
     revealTimer = revealTime;
-    timeToReveal = revealTime;
 
     wave = {
       players,
-      ballLane,
-      speed: speedBase + Math.min(220, score * 6), // ramp
-      // if switching, do it around midfield
+      speed: speedBase + Math.min(220, score * 6),
       switchAtY: canvas.height * 0.28 + Math.random() * canvas.height * 0.22,
       didSwitch: false,
     };
@@ -245,7 +235,7 @@
       else if (state === "over") startGame();
       else if (state === "play" && hit >= 1){
         hit = 0;
-        hitActiveTimer = 1.75; // seconds of auto-stop power
+        hitActiveTimer = 1.75;
       }
     }
 
@@ -261,7 +251,6 @@
     if (state === "menu") { startGame(); return; }
     if (state === "over") { startGame(); return; }
 
-    // Tap/click lane
     const lanesX = [laneX(0), laneX(1), laneX(2)];
     let bestLane = 0, bestDist = Infinity;
     lanesX.forEach((lx, i) => {
@@ -283,7 +272,7 @@
         alert("Copied share text to clipboard!");
       }
     } catch (err){
-      // user cancelled share, ignore
+      // ignore cancel
     }
   });
 
@@ -291,13 +280,11 @@
   // Gameplay events
   // -------------------------
   function resolveContact(){
-    // Find the ballcarrier lane at contact moment (after possible switch)
     const ball = wave.players.find(p => p.isBall);
     const ballLane = ball.lane;
 
-    // If Hit Stick active: always stop the play
     if (hitActiveTimer > 0){
-      score += 2;          // reward power use
+      score += 2;
       streak += 1;
       hit = clamp(hit + 0.15, 0, 1);
       setHUD();
@@ -307,15 +294,11 @@
     }
 
     if (rob.lane === ballLane){
-      // tackle
       score += 1;
       streak += 1;
-
-      // build hit stick faster with streak
       const gain = 0.20 + Math.min(0.20, streak * 0.02);
       hit = clamp(hit + gain, 0, 1);
     } else {
-      // blocked / miss
       lives -= 1;
       streak = 0;
       hit = clamp(hit - 0.20, 0, 1);
@@ -328,7 +311,6 @@
 
     setHUD();
 
-    // Increase difficulty gradually
     if (score % 5 === 0){
       speedBase += 12;
       revealTime = Math.max(0.45, revealTime - 0.04);
@@ -340,12 +322,11 @@
   }
 
   // -------------------------
-  // Rendering (SNES-ish pixel vibe)
+  // Rendering
   // -------------------------
   function drawStadium(){
     const w = canvas.width, h = canvas.height;
 
-    // sky/roof
     ctx.fillStyle = "#050912";
     ctx.fillRect(0,0,w,h);
 
@@ -368,13 +349,13 @@
     ctx.fillStyle = "#071a12";
     ctx.fillRect(0, h*0.33, w, h*0.67);
 
-    // field stripes
+    // stripes
     for (let i=0; i<10; i++){
       ctx.fillStyle = (i%2===0) ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0)";
       ctx.fillRect(0, h*0.33 + i*(h*0.067), w, h*0.067);
     }
 
-    // hash marks + yard lines
+    // yard lines + hashes
     ctx.strokeStyle = "rgba(255,255,255,0.10)";
     ctx.lineWidth = 2;
     for (let y=h*0.40; y<h; y+=40){
@@ -383,7 +364,6 @@
       ctx.lineTo(w, y);
       ctx.stroke();
 
-      // hashes
       ctx.fillStyle = "rgba(255,255,255,0.10)";
       for (let x= w*0.20; x<=w*0.80; x+=18){
         ctx.fillRect(x, y-1, 6, 2);
@@ -409,123 +389,203 @@
     ctx.stroke();
   }
 
-  function drawPlayerPixel(x, y, skin="#5b3a1f", jersey="#b46bff", helmet="#5b2aa7", accents="#f59e0b", number="52", isRobinson=false){
-    // Pixel-y body (simple rectangles)
-    // scale
+  // Upgraded pixel sprite with outline + shading + optional pants/facemask
+  function drawPlayerPixel(
+    x, y,
+    skin="#5b3a1f",
+    jersey="#b46bff",
+    helmet="#5b2aa7",
+    accents="#f59e0b",
+    number="52",
+    isRobinson=false,
+    pants="#e6edf3",
+    facemask="rgba(230,237,243,0.85)"
+  ){
     const s = 3.0;
 
-    // shadow
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.fillRect(x-16*s, y+18*s, 32*s, 6*s);
+    // Shadow
+    ctx.fillStyle = "rgba(0,0,0,0.38)";
+    ctx.fillRect(x-16*s, y+19*s, 32*s, 6*s);
 
-    // legs
-    ctx.fillStyle = "#e6edf3";
-    ctx.fillRect(x-8*s, y+6*s, 6*s, 14*s);
-    ctx.fillRect(x+2*s, y+6*s, 6*s, 14*s);
+    function outlineRect(px, py, w, h){
+      ctx.strokeStyle = "rgba(0,0,0,0.40)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(px, py, w, h);
+    }
 
-    // pants belt line
+    // Pants/legs
+    ctx.fillStyle = pants;
+    ctx.fillRect(x-9*s, y+6*s, 7*s, 15*s);
+    ctx.fillRect(x+2*s, y+6*s, 7*s, 15*s);
+    outlineRect(x-9*s, y+6*s, 7*s, 15*s);
+    outlineRect(x+2*s, y+6*s, 7*s, 15*s);
+
+    // Sock stripe
     ctx.fillStyle = "rgba(0,0,0,0.18)";
-    ctx.fillRect(x-10*s, y+6*s, 20*s, 2*s);
+    ctx.fillRect(x-9*s, y+16*s, 7*s, 2*s);
+    ctx.fillRect(x+2*s, y+16*s, 7*s, 2*s);
 
-    // torso
+    // Cleats
+    ctx.fillStyle = "#0b0f14";
+    ctx.fillRect(x-10*s, y+21*s, 9*s, 3*s);
+    ctx.fillRect(x+1*s, y+21*s, 9*s, 3*s);
+
+    // Torso
     ctx.fillStyle = jersey;
-    ctx.fillRect(x-12*s, y-10*s, 24*s, 18*s);
+    ctx.fillRect(x-12*s, y-10*s, 24*s, 19*s);
+    outlineRect(x-12*s, y-10*s, 24*s, 19*s);
 
-    // shoulder accents
+    // Torso shading
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(x-12*s, y-10*s, 24*s, 7*s);
+    ctx.globalAlpha = 1;
+
+    // Shoulder accents
     ctx.fillStyle = accents;
     ctx.fillRect(x-12*s, y-10*s, 6*s, 6*s);
     ctx.fillRect(x+6*s, y-10*s, 6*s, 6*s);
 
-    // arms
+    // Arms
     ctx.fillStyle = jersey;
-    ctx.fillRect(x-18*s, y-8*s, 6*s, 14*s);
-    ctx.fillRect(x+12*s, y-8*s, 6*s, 14*s);
+    ctx.fillRect(x-18*s, y-8*s, 6*s, 15*s);
+    ctx.fillRect(x+12*s, y-8*s, 6*s, 15*s);
+    outlineRect(x-18*s, y-8*s, 6*s, 15*s);
+    outlineRect(x+12*s, y-8*s, 6*s, 15*s);
 
-    // hands
+    // Hands
     ctx.fillStyle = skin;
-    ctx.fillRect(x-18*s, y+6*s, 6*s, 4*s);
-    ctx.fillRect(x+12*s, y+6*s, 6*s, 4*s);
+    ctx.fillRect(x-18*s, y+7*s, 6*s, 4*s);
+    ctx.fillRect(x+12*s, y+7*s, 6*s, 4*s);
+    outlineRect(x-18*s, y+7*s, 6*s, 4*s);
+    outlineRect(x+12*s, y+7*s, 6*s, 4*s);
 
-    // helmet
+    // Helmet
     ctx.fillStyle = helmet;
-    ctx.fillRect(x-11*s, y-22*s, 22*s, 12*s);
+    ctx.fillRect(x-11*s, y-23*s, 22*s, 13*s);
+    outlineRect(x-11*s, y-23*s, 22*s, 13*s);
 
-    // facemask
-    ctx.fillStyle = "rgba(230,237,243,0.75)";
+    // Facemask
+    ctx.fillStyle = facemask;
     ctx.fillRect(x-12*s, y-18*s, 24*s, 2*s);
     ctx.fillRect(x-10*s, y-16*s, 20*s, 2*s);
+    ctx.fillRect(x-8*s,  y-14*s, 16*s, 2*s);
 
-    // face
+    // Face
     ctx.fillStyle = skin;
     ctx.fillRect(x-7*s, y-18*s, 14*s, 6*s);
+    outlineRect(x-7*s, y-18*s, 14*s, 6*s);
 
-    // number
-    ctx.fillStyle = "#0b1220";
-    ctx.globalAlpha = 0.45;
-    ctx.fillRect(x-6*s, y-3*s, 12*s, 10*s);
-    ctx.globalAlpha = 1;
+    // Number plate
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    ctx.fillRect(x-7*s, y-3*s, 14*s, 11*s);
+
+    // Number
     ctx.fillStyle = "#e6edf3";
-    ctx.font = "bold 14px system-ui";
+    ctx.font = "900 15px system-ui";
     ctx.textAlign = "center";
-    ctx.fillText(number, x, y+6*s);
+    ctx.fillText(number, x, y+7*s);
 
     if (isRobinson){
-      // small LB "X Factor" outline
-      ctx.strokeStyle = "rgba(147,197,253,0.25)";
+      ctx.strokeStyle = "rgba(147,197,253,0.35)";
       ctx.lineWidth = 2;
-      ctx.strokeRect(x-13*s, y-23*s, 26*s, 46*s);
+      ctx.strokeRect(x-14*s, y-24*s, 28*s, 48*s);
     }
   }
 
+  // Offense: runner extremely readable
   function drawOffense(p, isReveal){
     const x = p.x, y = p.y;
-    // Make blockers look bulkier + different helmet
-    const jersey = p.isBall ? "#ef4444" : "#1f3b7a";
+
+    const runnerJersey = "#ef4444";
+    const blockerJersey = "#1f3b7a";
+
+    const jersey = p.isBall ? runnerJersey : blockerJersey;
     const helmet = "#111827";
     const accents = p.isBall ? "#f59e0b" : "#93c5fd";
     const skin = "#3b2a1a";
 
-    // Ball carrier tell (brief)
+    const pants = p.isBall ? "#e6edf3" : "#94a3b8";
+    const facemask = p.isBall ? "rgba(245,158,11,0.95)" : "rgba(230,237,243,0.80)";
+
+    // Reveal arrow/glow
     if (p.isBall && isReveal){
-      ctx.globalAlpha = 0.6;
+      ctx.globalAlpha = 0.55;
       ctx.fillStyle = "rgba(245,158,11,0.55)";
       ctx.beginPath();
-      ctx.arc(x, y-20, 28, 0, Math.PI*2);
+      ctx.arc(x, y-20, 30, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = "rgba(245,158,11,0.95)";
+      ctx.beginPath();
+      ctx.moveTo(x, y-70);
+      ctx.lineTo(x-12, y-50);
+      ctx.lineTo(x+12, y-50);
+      ctx.closePath();
       ctx.fill();
       ctx.globalAlpha = 1;
     }
 
-    // If ball carrier, draw a tiny ball
+    // Runner always carries ball
     if (p.isBall){
-      ctx.fillStyle = "#8b5a2b";
-      ctx.fillRect(x+18, y-2, 12, 6);
-      ctx.fillStyle = "rgba(230,237,243,0.6)";
-      ctx.fillRect(x+20, y-1, 2, 4);
+      ctx.fillStyle = "#7a4a24";
+      ctx.fillRect(x+18, y-4, 14, 7);
+      ctx.fillStyle = "rgba(230,237,243,0.75)";
+      ctx.fillRect(x+20, y-3, 2, 5);
+      ctx.fillRect(x+24, y-3, 1, 5);
     }
 
-    // Number hints (small)
     const num = p.isBall ? "22" : "77";
-    drawPlayerPixel(x, y, skin, jersey, helmet, accents, num, false);
+    const bob = Math.sin((y + (p.isBall ? 0 : 20)) * 0.06) * 2;
 
-    // If switched mid-run, leave a small streak
+    drawPlayerPixel(
+      x, y + bob,
+      skin,
+      jersey,
+      helmet,
+      accents,
+      num,
+      false,
+      pants,
+      facemask
+    );
+
+    // Extra bulk for blockers
+    if (!p.isBall){
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(x-44, y-40, 88, 12);
+      ctx.globalAlpha = 1;
+    }
+
     if (p.switched){
       ctx.globalAlpha = 0.25;
       ctx.fillStyle = "rgba(147,197,253,0.6)";
-      ctx.fillRect(x-8, y+40, 16, 4);
+      ctx.fillRect(x-10, y+42, 20, 4);
       ctx.globalAlpha = 1;
     }
   }
 
+  // Robinson in Saint Catherine uniform, Black, #52
   function drawRobinson(){
-    // Robinson: dark jersey w/ orange accent vibe; LB identity
-    drawPlayerPixel(rob.x, rob.y, "#4a2f1a", "#7c3aed", "#5b2aa7", "#f59e0b", "54", true);
+    drawPlayerPixel(
+      rob.x, rob.y,
+      "#4b2e1f",      // skin tone
+      "#facc15",      // yellow jersey
+      "#4c1d95",      // purple helmet
+      "#2563eb",      // accents
+      "52",
+      true,
+      "#22c7c6",      // teal pants
+      "rgba(250,204,21,0.95)" // facemask
+    );
 
-    // Hit-stick glow if ready/active
     if (hit >= 1 || hitActiveTimer > 0){
-      ctx.globalAlpha = 0.25 + (hitActiveTimer > 0 ? 0.25 : 0);
-      ctx.fillStyle = "rgba(245,158,11,0.75)";
+      ctx.globalAlpha = 0.22 + (hitActiveTimer > 0 ? 0.25 : 0);
+      ctx.fillStyle = "rgba(250,204,21,0.80)";
       ctx.beginPath();
-      ctx.arc(rob.x, rob.y-20, 45, 0, Math.PI*2);
+      ctx.arc(rob.x, rob.y-20, 46, 0, Math.PI*2);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
@@ -540,19 +600,19 @@
     ctx.fillStyle = "#e6edf3";
     ctx.textAlign = "center";
     ctx.font = "900 40px system-ui";
-    ctx.fillText("Shut the Gap", canvas.width/2, canvas.height/2 - 50);
+    ctx.fillText("Shut the Gap", canvas.width/2, canvas.height/2 - 56);
 
-    ctx.font = "800 20px system-ui";
-    ctx.fillStyle = "#93c5fd";
-    ctx.fillText("Wayne Robinson", canvas.width/2, canvas.height/2 - 20);
+    ctx.font = "900 20px system-ui";
+    ctx.fillStyle = "#facc15";
+    ctx.fillText("Wayne Robinson • #52", canvas.width/2, canvas.height/2 - 26);
 
     ctx.font = "16px system-ui";
     ctx.fillStyle = "rgba(230,237,243,0.9)";
-    ctx.fillText("Read the ball carrier. Slide into the lane. Make the stop.", canvas.width/2, canvas.height/2 + 18);
+    ctx.fillText("Read the ball carrier. Slide into the lane. Make the stop.", canvas.width/2, canvas.height/2 + 14);
 
-    ctx.fillStyle = "#f59e0b";
+    ctx.fillStyle = "#93c5fd";
     ctx.font = "900 18px system-ui";
-    ctx.fillText("Press SPACE or click to start", canvas.width/2, canvas.height/2 + 60);
+    ctx.fillText("Press SPACE or click to start", canvas.width/2, canvas.height/2 + 56);
   }
 
   function drawGameOver(){
@@ -589,41 +649,35 @@
 
     const dx = rob.targetX - rob.x;
     rob.vx += clamp(dx * 8, -accel, accel) * dt;
-    rob.vx *= Math.pow(0.12, dt); // damping
+    rob.vx *= Math.pow(0.12, dt);
     rob.vx = clamp(rob.vx, -maxV, maxV);
     rob.x += rob.vx * dt;
 
-    // Clamp within field lanes
     rob.x = clamp(rob.x, canvas.width*0.10, canvas.width*0.90);
 
     if (state === "play"){
-      // hit stick active timer
       if (hitActiveTimer > 0){
         hitActiveTimer -= dt;
         if (hitActiveTimer < 0) hitActiveTimer = 0;
       }
 
-      // spawn new wave
       spawnCooldown -= dt;
       if (!wave && spawnCooldown <= 0){
         newWave();
       }
 
       if (wave){
-        // reveal phase countdown
         if (revealTimer > 0){
           revealTimer -= dt;
           revealTimer = Math.max(0, revealTimer);
         } else {
-          // Move players
           const sp = wave.speed * dt;
           wave.players.forEach(p => {
             p.y += sp;
 
-            // Switch mechanic: ballcarrier may switch lanes once mid-run
+            // Switch once mid-run
             if (!wave.didSwitch && p.isBall && p.y >= wave.switchAtY){
               if (Math.random() < switchChance){
-                // swap lanes with a blocker
                 const blockers = wave.players.filter(x => !x.isBall);
                 const swapWith = blockers[Math.floor(Math.random()*blockers.length)];
                 const oldLane = p.lane;
@@ -640,7 +694,6 @@
             }
           });
 
-          // Contact when any player reaches tackle line (they arrive together)
           const reach = wave.players.some(p => p.y >= 410);
           if (reach){
             resolveContact();
@@ -670,22 +723,19 @@
       ctx.textAlign = "right";
       const ready = (hit >= 1) ? "HIT STICK READY (SPACE)" : `Hit Stick ${Math.round(hit*100)}%`;
       const glow = (hit >= 1 || hitActiveTimer > 0);
-      ctx.fillStyle = glow ? "rgba(245,158,11,0.95)" : "rgba(147,197,253,0.85)";
+      ctx.fillStyle = glow ? "rgba(250,204,21,0.95)" : "rgba(147,197,253,0.85)";
       ctx.fillText(ready, canvas.width - 16, canvas.height*0.33 + 22);
 
-      // Draw wave players
       if (wave){
         const isReveal = revealTimer > 0;
         wave.players.forEach(p => drawOffense(p, isReveal));
       }
 
-      // Draw Robinson
       drawRobinson();
 
-      // Small hint text
       if (wave && revealTimer > 0){
         ctx.textAlign = "center";
-        ctx.fillStyle = "rgba(230,237,243,0.85)";
+        ctx.fillStyle = "rgba(230,237,243,0.88)";
         ctx.font = "900 14px system-ui";
         ctx.fillText("READ THE BALL CARRIER!", canvas.width/2, 120);
       }
@@ -694,19 +744,10 @@
     requestAnimationFrame(tick);
   }
 
-  // Buttons
-  ui.restartBtn.addEventListener("click", () => {
-    if (state === "menu" || state === "over") startGame();
-    else startGame();
-  });
-
-  // Click on canvas starts too (already handled in pointerdown)
-  // Initialize
+  // Init
   resetGame();
   setHUD();
   requestAnimationFrame(tick);
-
-  // If users click page first time, keep best visible
   ui.best.textContent = best;
 
 })();
