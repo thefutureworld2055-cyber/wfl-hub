@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WFL — Rivalry Heat Meter</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .opt{ padding:12px; border:1px solid var(--border); border-radius:12px; background:#0b1220; margin:10px 0; display:flex; justify-content:space-between; gap:10px; align-items:center;}
+    button{ padding:8px 12px; border-radius:12px; border:1px solid var(--border); background:#0f1623; color:var(--text); cursor:pointer; font-weight:900; }
+    button:hover{ border-color: var(--link); }
+    .small{ font-size:12px; color:var(--muted); }
+    .status{ margin-top:10px; font-size:12px; color:var(--muted); }
+    input{
+      width:100%; padding:10px; border-radius:10px; border:1px solid var(--border);
+      background:#0b1220; color:var(--text);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>WFL HUB</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="arcade.html">Arcade</a>
+    </nav>
+  </header>
+
+  <main class="wrap">
+    <div class="card">
+      <h2>Rivalry Heat Meter</h2>
+      <p class="muted">Which matchup is the spiciest this week? One pick.</p>
+
+      <label class="small" style="display:block; margin:10px 0 6px;">Optional nickname (not required)</label>
+      <input id="nick" placeholder="Example: Ark / AJ / WFLFan123 (optional)" maxlength="24">
+
+      <div id="list"></div>
+
+      <div class="embed-wrap">
+        <p><strong>Your current pick:</strong> <span id="pick">None yet</span></p>
+        <button id="clear">Clear my pick</button>
+        <p class="status" id="status"></p>
+        <p class="small">Update weekly: edit the RIVALRIES list in the code.</p>
+      </div>
+    </div>
+  </main>
+
+<script>
+  // ====== SUBMISSION CONFIG (yours) ======
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzx5b529PDqA1wsGXFttHg82DLsTa-QnOxrbA9TzYw25-Z3ueaBN324sw4H1DxY4pyR/exec";
+  const SECRET = "WFL_SECRET_123";
+
+  async function sendActivity(activity, choice, comment="") {
+    const payload = {
+      secret: SECRET,
+      activity,
+      fanName: document.getElementById("nick").value || "",
+      fanTeam: "",
+      choice,
+      comment,
+      page: location.href,
+      userAgent: navigator.userAgent
+    };
+    try{
+      const res = await fetch(WEB_APP_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      return data && data.ok;
+    } catch(e){
+      return false;
+    }
+  }
+
+  // ====== EDIT THIS WEEKLY ======
+  const RIVALRIES = [
+    { a: "Dallas", b: "Wallerock", note: "Big personalities. Big stakes." },
+    { a: "Madrid", b: "Berlin", note: "Top tier clash." },
+    { a: "Boise", b: "Denver", note: "Mountain grudge match." },
+    { a: "New England", b: "New York", note: "Northeast war." },
+    { a: "Saint Catherine", b: "Atlanta", note: "Fire vs swagger." }
+  ];
+
+  const KEY = "wfl_rivalry_heat_pick";
+  const list = document.getElementById("list");
+  const pickEl = document.getElementById("pick");
+  const statusEl = document.getElementById("status");
+
+  function setStatus(msg){ statusEl.textContent = msg || ""; }
+
+  function load(){
+    pickEl.textContent = localStorage.getItem(KEY) || "None yet";
+  }
+
+  async function pick(match){
+    localStorage.setItem(KEY, match);
+    load();
+    setStatus("Submitting…");
+    const ok = await sendActivity("Rivalry Heat Meter", match, "");
+    setStatus(ok ? "✅ Submitted to WFL results." : "⚠️ Saved on your device (submit failed).");
+  }
+
+  function render(){
+    list.innerHTML = "";
+    RIVALRIES.forEach(r=>{
+      const row = document.createElement("div");
+      row.className = "opt";
+      const label = `${r.a} vs ${r.b}`;
+      row.innerHTML = `<div><strong>${label}</strong><div class="small">${r.note || ""}</div></div>`;
+      const btn = document.createElement("button");
+      btn.textContent = "Vote";
+      btn.onclick = () => pick(label);
+      row.appendChild(btn);
+      list.appendChild(row);
+    });
+  }
+
+  document.getElementById("clear").onclick = () => {
+    localStorage.removeItem(KEY);
+    load();
+    setStatus("");
+  };
+
+  render();
+  load();
+</script>
+</body>
+</html>
