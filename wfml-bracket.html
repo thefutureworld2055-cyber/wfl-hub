@@ -1,0 +1,111 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WFML — Playoff Bracket</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, Arial, sans-serif;
+      background: #0b0f14;
+      color: #e6edf3;
+    }
+
+    header {
+      background: #111827;
+      border-bottom: 2px solid #1f2a37;
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 1px;
+    }
+
+    nav a {
+      color: #93c5fd;
+      text-decoration: none;
+      font-weight: 700;
+      margin-left: 16px;
+    }
+
+    nav a:hover {
+      text-decoration: underline;
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .card {
+      background: #0f1623;
+      border: 1px solid #1f2a37;
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      margin-top: 0;
+      border-bottom: 1px solid #1f2a37;
+      padding-bottom: 6px;
+    }
+
+    .muted {
+      color: #9aa4b2;
+      font-size: 14px;
+    }
+
+    iframe {
+      border-radius: 12px;
+      border: 1px solid #1f2a37;
+    }
+
+    @media (max-width: 900px) {
+      iframe {
+        height: 650px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>WFL HUB</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="arcade.html">Arcade</a>
+      <a href="wfml-bracket.html">WFML Bracket</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>WFML Playoff Bracket</h2>
+      <p class="muted">
+        Follow the WFML postseason live. Updated as results come in.
+      </p>
+
+      <div style="margin-top:16px;">
+        <iframe src="https://brackethq.com/b/8qm8c/embed/?name=1&stand=1"
+                width="100%"
+                height="550"
+                frameborder="0">
+        </iframe>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
