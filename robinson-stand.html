@@ -8,10 +8,10 @@
   <style>
     .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
     .hudrow { display:flex; gap:12px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-bottom:12px; }
-    .panel { border:1px solid var(--border); background:#0b1220; border-radius:14px; padding:12px; }
+    .panel { border:1px solid var(--border); background:var(--panel); border-radius:14px; padding:12px; }
     .btn {
       display:inline-block; padding:10px 14px; border-radius:12px;
-      border:1px solid var(--border); background:#0f1623; color:var(--text);
+      border:1px solid var(--border); background:var(--panel); color:var(--text);
       text-decoration:none; font-weight:900; cursor:pointer;
     }
     .btn:hover{ border-color: var(--link); }
@@ -22,19 +22,10 @@
     .tag{ display:inline-block; font-size:12px; padding:2px 8px; border:1px solid var(--border); border-radius:999px; color:var(--muted); }
   </style>
 </head>
+
 <body>
-  <header>
-    <h1>WFL HUB</h1>
- <nav>
-  <a href="index.html">Home</a>
-  <a href="schedule.html">Schedule</a>
-  <a href="news.html">News</a>
-  <a href="quiz.html">Quiz</a>
-  <a href="fan-activity.html">Fan Activity</a>
-  <a href="arcade.html">Arcade</a>
-  <a href="wfml-bracket.html">WFML Bracket</a>
-</nav>
-  </header>
+  <div id="nav-placeholder"></div>
+  <script src="nav.js"></script>
 
   <main class="wrap">
     <div class="panel">
