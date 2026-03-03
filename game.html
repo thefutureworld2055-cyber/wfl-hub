@@ -5,17 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Custer Dash — WFL</title>
   <link rel="stylesheet" href="style.css">
+
   <style>
     .hud { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    .hud span { display:inline-block; padding:6px 10px; border:1px solid var(--border); border-radius:12px; background:#0b1220; }
-    canvas { width:100%; max-width: 980px; border:1px solid var(--border); border-radius:14px; background:#0b1220; display:block; }
+    .hud span { display:inline-block; padding:6px 10px; border:1px solid var(--border); border-radius:12px; background:var(--panel); }
+
+    canvas {
+      width:100%;
+      max-width: 980px;
+      border:1px solid var(--border);
+      border-radius:14px;
+      background:var(--panel);
+      display:block;
+    }
+
     .hint { font-size:12px; color:var(--muted); margin-top:10px; }
     .btnrow { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+
     button{
       padding:10px 14px;
       border-radius:12px;
       border:1px solid var(--border);
-      background:#0b1220;
+      background:var(--panel);
       color:var(--text);
       cursor:pointer;
       font-weight:900;
@@ -25,18 +36,8 @@
 </head>
 
 <body>
-  <header>
-    <h1>WFL HUB</h1>
- <nav>
-  <a href="index.html">Home</a>
-  <a href="schedule.html">Schedule</a>
-  <a href="news.html">News</a>
-  <a href="quiz.html">Quiz</a>
-  <a href="fan-activity.html">Fan Activity</a>
-  <a href="arcade.html">Arcade</a>
-  <a href="wfml-bracket.html">WFML Bracket</a>
-</nav>
-  </header>
+  <div id="nav-placeholder"></div>
+  <script src="nav.js"></script>
 
   <main class="wrap">
     <div class="card">
@@ -378,7 +379,6 @@
       const y = 92 + ((x/14|0)%3)*16;
       ctx.fillStyle = (x % 56 === 0) ? "#1d3b7a" : (x % 28 === 0 ? "#16315f" : "#102a52");
       ctx.fillRect(x, y, 10, 10);
-      // occasional “orange shirt”
       if (x % 98 === 0) { ctx.fillStyle = "#f08a1a"; ctx.fillRect(x+2, y+2, 6, 6); }
     }
     ctx.globalAlpha = 1;
@@ -422,7 +422,7 @@
     ctx.fillRect(0, groundY, W, 3);
   }
 
-  // ---------- Draw Player (SNES-ish blocks) ----------
+  // ---------- Draw Player ----------
   function drawPlayer(dt) {
     player.animT += dt;
 
@@ -435,7 +435,6 @@
     const x = player.x;
     const y = player.y + bob;
 
-    // palette (your request)
     const skin   = "#4b2a1a";
     const jersey = "#2a0f56";
     const helmet = "#3a1475";
@@ -443,7 +442,6 @@
     const pants  = "#e8eef7";
     const shadow = "#0b0f1b";
 
-    // shadow
     ctx.fillStyle = shadow;
     ctx.globalAlpha = 0.35;
     ctx.fillRect(x + 6, groundY + 8, 40, 10);
@@ -452,65 +450,52 @@
     const w = player.w;
     const h = player.h;
 
-    // legs
     ctx.fillStyle = pants;
     ctx.fillRect(x + 12 + legSwing*0.10, y + h - 26, 10, 20);
     ctx.fillRect(x + 24 - legSwing*0.10, y + h - 26, 10, 20);
 
-    // orange stripe
     ctx.fillStyle = orange;
     ctx.fillRect(x + 22, y + h - 26, 4, 20);
 
-    // shoes
     ctx.fillStyle = "#0a0a0a";
     ctx.fillRect(x + 11, y + h - 8, 12, 8);
     ctx.fillRect(x + 23, y + h - 8, 12, 8);
 
-    // torso
     ctx.fillStyle = jersey;
     ctx.fillRect(x + 10, y + 24, 28, 26);
 
-    // shoulder highlight
     ctx.fillStyle = orange;
     ctx.fillRect(x + 10, y + 26, 7, 8);
 
-    // arms
     ctx.fillStyle = skin;
-    ctx.fillRect(x + 32, y + 30 + armSwing*0.08, 8, 14);  // back arm
-    ctx.fillRect(x + 6,  y + 28 - armSwing*0.08, 8, 16);  // front arm
+    ctx.fillRect(x + 32, y + 30 + armSwing*0.08, 8, 14);
+    ctx.fillRect(x + 6,  y + 28 - armSwing*0.08, 8, 16);
 
-    // gloves
     ctx.fillStyle = "#1a1a1a";
     ctx.fillRect(x + 5,  y + 40 - armSwing*0.08, 10, 6);
     ctx.fillRect(x + 31, y + 40 + armSwing*0.08, 10, 6);
 
-    // helmet
     ctx.fillStyle = helmet;
     ctx.fillRect(x + 10, y + 6, 28, 20);
 
-    // face opening (front/right)
     ctx.fillStyle = skin;
     ctx.fillRect(x + 26, y + 12, 10, 10);
 
-    // facemask
     ctx.fillStyle = orange;
     ctx.fillRect(x + 20, y + 16, 14, 3);
     ctx.fillRect(x + 35, y + 12, 3, 10);
 
-    // visor highlight
     ctx.fillStyle = "#ffffff";
     ctx.globalAlpha = 0.22;
     ctx.fillRect(x + 26, y + 8, 10, 3);
     ctx.globalAlpha = 1;
 
-    // Jersey number "1"
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(x + 22, y + 28, 4, 18);
     ctx.fillStyle = orange;
     ctx.fillRect(x + 21, y + 28, 6, 2);
     ctx.fillRect(x + 21, y + 44, 6, 2);
 
-    // Shield ring effect
     if (shield) {
       ctx.globalAlpha = 0.20;
       ctx.strokeStyle = "#9ad1ff";
@@ -522,7 +507,7 @@
     }
   }
 
-  // ---------- Draw Defenders (Football obstacles) ----------
+  // ---------- Draw Defenders ----------
   function drawDefender(o, dt) {
     o.anim += dt;
     const bob = Math.sin(o.anim * 10) * 1.5;
@@ -530,49 +515,40 @@
     const x = o.x;
     const y = o.y + bob;
 
-    // defender palette (contrasting)
     const helm = "#1b1f2a";
     const uni  = "#0d4a2a";
     const acc  = "#d7e6ff";
     const skin = "#3a251a";
 
-    // shadow
     ctx.globalAlpha = 0.25;
     ctx.fillStyle = "#0b0f1b";
     ctx.fillRect(x + 6, groundY + 10, o.w - 12, 8);
     ctx.globalAlpha = 1;
 
-    // legs
     ctx.fillStyle = "#2a2a2a";
     ctx.fillRect(x + 10, y + o.h - 22, 10, 16);
     ctx.fillRect(x + 24, y + o.h - 22, 10, 16);
 
-    // torso
     ctx.fillStyle = uni;
     ctx.fillRect(x + 8, y + 22, o.w - 16, 26);
 
-    // number block
     ctx.globalAlpha = 0.6;
     ctx.fillStyle = acc;
     ctx.fillRect(x + 18, y + 28, 8, 16);
     ctx.globalAlpha = 1;
 
-    // arms
     ctx.fillStyle = skin;
     ctx.fillRect(x + 4, y + 28, 8, 16);
     ctx.fillRect(x + o.w - 12, y + 28, 8, 16);
 
-    // helmet
     ctx.fillStyle = helm;
     ctx.fillRect(x + 10, y + 6, o.w - 20, 18);
 
-    // facemask
     ctx.fillStyle = acc;
     ctx.globalAlpha = 0.65;
     ctx.fillRect(x + 12, y + 16, o.w - 24, 3);
     ctx.globalAlpha = 1;
 
-    // type indicator (subtle)
     if (o.type === "hitHigh") {
       ctx.globalAlpha = 0.35;
       ctx.fillStyle = "#f08a1a";
@@ -587,13 +563,12 @@
     }
   }
 
-  // ---------- Power-ups (clear icons) ----------
+  // ---------- Power-ups ----------
   function drawPickup(p, dt) {
     p.bob += dt * 3;
     const y = p.y + Math.sin(p.bob) * 2;
 
     if (p.type === "shield") {
-      // Blue badge shield
       ctx.fillStyle = "#2a5bd6";
       ctx.fillRect(p.x, y, p.w, p.h);
       ctx.globalAlpha = 0.85;
@@ -605,29 +580,25 @@
       ctx.fillStyle = "#9ad1ff";
       ctx.fillRect(p.x + 13, y + 11, p.w - 26, p.h - 22);
     } else {
-      // Boots: orange boot icon
       ctx.fillStyle = "#f08a1a";
       ctx.fillRect(p.x, y, p.w, p.h);
       ctx.fillStyle = "#071022";
-      // boot shape
       ctx.fillRect(p.x + 8, y + 7, 10, 14);
       ctx.fillRect(p.x + 18, y + 16, 8, 5);
       ctx.fillStyle = "#d7e6ff";
       ctx.globalAlpha = 0.7;
-      ctx.fillRect(p.x + 8, y + 21, 18, 3); // sole
+      ctx.fillRect(p.x + 8, y + 21, 18, 3);
       ctx.globalAlpha = 1;
     }
   }
 
   // ---------- Menu Overlay ----------
   function drawMenuOverlay() {
-    // dim
     ctx.globalAlpha = 0.78;
     ctx.fillStyle = "#050b18";
     ctx.fillRect(0, 0, W, H);
     ctx.globalAlpha = 1;
 
-    // title
     ctx.fillStyle = "#ffffff";
     ctx.globalAlpha = 0.95;
     ctx.font = "52px sans-serif";
@@ -638,7 +609,6 @@
     ctx.fillText("Click / Space to start • ↑ jump • ↓ slide • Grab Shield + Boots", 60, 122);
     ctx.globalAlpha = 1;
 
-    // image card
     const cardX = 60, cardY = 150, cardW = 360, cardH = 240;
     ctx.fillStyle = "#0b1220";
     ctx.fillRect(cardX, cardY, cardW, cardH);
@@ -646,7 +616,6 @@
     ctx.strokeRect(cardX, cardY, cardW, cardH);
 
     if (heroLoaded) {
-      // contain image in card
       const iw = heroImg.width, ih = heroImg.height;
       const scale = Math.min((cardW-20)/iw, (cardH-20)/ih);
       const dw = iw * scale, dh = ih * scale;
@@ -661,7 +630,6 @@
       ctx.globalAlpha = 1;
     }
 
-    // right side info
     ctx.fillStyle = "#ffffff";
     ctx.globalAlpha = 0.9;
     ctx.font = "22px sans-serif";
@@ -680,21 +648,17 @@
   function update(dt) {
     if (state !== "playing") return;
 
-    // boots timer
     if (bootsT > 0) {
       bootsT -= dt;
       if (bootsT <= 0) { bootsT = 0; bootsMult = 1; }
     }
 
-    // difficulty
     speed += speedGain * dt;
     spawnEvery = clamp(spawnBase - (speed - baseSpeed)/1400, spawnMin, spawnBase);
 
-    // score
     scoreFloat += effectiveSpeed() * dt * 0.10;
     score = Math.floor(scoreFloat);
 
-    // physics
     player.vy += gravity * dt;
     player.y += player.vy * dt;
 
@@ -707,7 +671,6 @@
       player.onGround = true;
     } else player.onGround = false;
 
-    // slide timer
     if (player.sliding) {
       player.slideT -= dt;
       if (player.slideT <= 0) {
@@ -717,14 +680,12 @@
       }
     }
 
-    // spawn defenders
     spawnTimer += dt;
     if (spawnTimer >= spawnEvery) {
       spawnTimer = 0;
       spawnDefender();
     }
 
-    // spawn powerups
     powerEvery = clamp(powerSpawnBase - (speed - baseSpeed)/2400, powerSpawnMin, powerSpawnBase);
     powerTimer += dt;
     if (powerTimer >= powerEvery) {
@@ -732,7 +693,6 @@
       if (pickups.length < 2) spawnPickup();
     }
 
-    // move defenders
     const sp = effectiveSpeed();
     for (let i = obstacles.length - 1; i >= 0; i--) {
       const o = obstacles[i];
@@ -740,17 +700,14 @@
       if (o.x + o.w < -80) obstacles.splice(i, 1);
     }
 
-    // move pickups
     for (let i = pickups.length - 1; i >= 0; i--) {
       const p = pickups[i];
       p.x -= sp * dt;
       if (p.x + p.w < -80) pickups.splice(i, 1);
     }
 
-    // collisions
     const pb = playerBox();
 
-    // pickups
     for (let i = pickups.length - 1; i >= 0; i--) {
       const p = pickups[i];
       const hb = pickupHitbox(p);
@@ -760,7 +717,6 @@
       }
     }
 
-    // defenders
     for (let i = 0; i < obstacles.length; i++) {
       const o = obstacles[i];
       const hb = obstacleHitbox(o);
@@ -776,7 +732,6 @@
       }
     }
 
-    // high score
     if (score > high) {
       high = score;
       localStorage.setItem("custer_dash_high", String(high));
@@ -789,16 +744,10 @@
   function render(dt) {
     drawStadium(dt);
 
-    // pickups
     for (const p of pickups) drawPickup(p, dt);
-
-    // defenders
     for (const o of obstacles) drawDefender(o, dt);
-
-    // player
     drawPlayer(dt);
 
-    // overlays
     if (state === "menu") drawMenuOverlay();
     if (state === "paused") {
       ctx.globalAlpha = 0.75;
@@ -843,7 +792,6 @@
   // ---------- Init ----------
   syncUI();
   requestAnimationFrame(loop);
-
 })();
 </script>
 </body>
