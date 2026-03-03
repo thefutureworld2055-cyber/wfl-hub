@@ -42,8 +42,9 @@
 
     .holiday-head {
       display:flex;
-      gap:10px;
-      align-items:baseline;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
       flex-wrap:wrap;
       margin-top: 12px;
       margin-bottom: 10px;
@@ -54,14 +55,37 @@
       box-shadow: 0 0 0 1px rgba(147,197,253,0.05) inset;
     }
 
+    .holiday-left{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+      min-width: 240px;
+    }
+
     .holiday-head .name {
       font-weight: 950;
       font-size: 16px;
+      margin: 0;
     }
 
     .holiday-head .date {
       color: var(--muted);
       font-size: 12px;
+      margin: 0;
+    }
+
+    /* Holiday logo styling */
+    .holiday-logo {
+      width: 64px;
+      height: 64px;
+      object-fit: cover; /* works even if not transparent */
+      border-radius: 14px;
+      border: 1px solid rgba(147,197,253,0.18);
+      background: rgba(11,18,32,0.55);
+      box-shadow:
+        0 10px 22px rgba(0,0,0,0.28),
+        0 0 0 1px rgba(147,197,253,0.06) inset;
     }
 
     .tagrow { display:flex; gap:8px; flex-wrap:wrap; margin-top: 6px; }
@@ -87,6 +111,7 @@
     }
     @media (max-width: 900px){
       .grid { grid-template-columns: 1fr; }
+      .holiday-logo { width: 56px; height: 56px; }
     }
 
     .gamecard {
@@ -151,9 +176,17 @@
       padding: 12px 14px;
       margin: 10px 0 12px;
       box-shadow: 0 0 0 1px rgba(240,138,26,0.06) inset;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
     }
     .bigcallout .title { font-weight: 950; margin: 0 0 4px 0; }
     .bigcallout .small { margin: 0; color: var(--muted); font-size: 12px; }
+    .bigcallout .right {
+      display:flex; align-items:center; gap:10px;
+    }
   </style>
 </head>
 
@@ -193,8 +226,19 @@
         <h3>Week 9</h3>
 
         <div class="holiday-head">
-          <span class="name">St. Patrick’s Day</span>
-          <span class="date">March 17</span>
+          <div class="holiday-left">
+            <img class="holiday-logo" src="assets/holidays/st-patricks.png" alt="St. Patrick’s Day logo">
+            <div>
+              <p class="name">St. Patrick’s Day</p>
+              <p class="date">March 17</p>
+            </div>
+          </div>
+
+          <div class="tagrow">
+            <span class="tag hot">Holiday Game</span>
+            <span class="tag">Rivalry</span>
+            <span class="tag">Ireland</span>
+          </div>
         </div>
 
         <div class="grid">
@@ -216,8 +260,19 @@
         <h3>Week 10</h3>
 
         <div class="holiday-head">
-          <span class="name">Eid al-Fitr</span>
-          <span class="date">March 20</span>
+          <div class="holiday-left">
+            <img class="holiday-logo" src="assets/holidays/eid.png" alt="Eid al-Fitr logo">
+            <div>
+              <p class="name">Eid al-Fitr</p>
+              <p class="date">March 20</p>
+            </div>
+          </div>
+
+          <div class="tagrow">
+            <span class="tag hot">Holiday Game</span>
+            <span class="tag">International</span>
+            <span class="tag">Morning Kick</span>
+          </div>
         </div>
 
         <div class="grid">
@@ -239,8 +294,19 @@
         <h3>Week 12</h3>
 
         <div class="holiday-head">
-          <span class="name">Good Friday</span>
-          <span class="date">April 3</span>
+          <div class="holiday-left">
+            <img class="holiday-logo" src="assets/holidays/good-friday.png" alt="Good Friday logo">
+            <div>
+              <p class="name">Good Friday</p>
+              <p class="date">April 3</p>
+            </div>
+          </div>
+
+          <div class="tagrow">
+            <span class="tag hot">Holiday Game</span>
+            <span class="tag">Spotlight</span>
+            <span class="tag">Cross-Division</span>
+          </div>
         </div>
 
         <div class="grid">
@@ -257,8 +323,19 @@
         </div>
 
         <div class="holiday-head" style="margin-top:14px;">
-          <span class="name">Passover</span>
-          <span class="date">April 4</span>
+          <div class="holiday-left">
+            <img class="holiday-logo" src="assets/holidays/passover.png" alt="Passover logo">
+            <div>
+              <p class="name">Passover</p>
+              <p class="date">April 4</p>
+            </div>
+          </div>
+
+          <div class="tagrow">
+            <span class="tag hot">Holiday Game</span>
+            <span class="tag">Statement Game</span>
+            <span class="tag">Morning Kick</span>
+          </div>
         </div>
 
         <div class="grid">
@@ -275,13 +352,30 @@
         </div>
 
         <div class="holiday-head" style="margin-top:14px;">
-          <span class="name">Easter Sunday</span>
-          <span class="date">April 5</span>
+          <div class="holiday-left">
+            <img class="holiday-logo" src="assets/holidays/easter.png" alt="Easter Sunday logo">
+            <div>
+              <p class="name">Easter Sunday</p>
+              <p class="date">April 5</p>
+            </div>
+          </div>
+
+          <div class="tagrow">
+            <span class="tag hot">Showcase Day</span>
+            <span class="tag">13 Games</span>
+            <span class="tag">League-Wide</span>
+          </div>
         </div>
 
         <div class="bigcallout">
-          <p class="title">Easter Sunday Showcase</p>
-          <p class="small">13 games • 1 day • league-wide slate (all times MT)</p>
+          <div>
+            <p class="title">Easter Sunday Showcase</p>
+            <p class="small">13 games • 1 day • league-wide slate (all times MT)</p>
+          </div>
+          <div class="right">
+            <img class="holiday-logo" src="assets/holidays/easter.png" alt="Easter logo (repeat)">
+            <span class="tag hot">Easter Main Event: Dallas vs New Jerusalem</span>
+          </div>
         </div>
 
         <div class="grid">
@@ -382,7 +476,7 @@
         </div>
 
         <p class="section-note">
-          Want this to look even more “event-like”? Next step is adding holiday logos + helmet images to each section/game card.
+          Next step: if you want, we can add helmet icons to each game card too (home vs away).
         </p>
       </section>
     </div>
