@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WFL — Fan Activity</title>
   <link rel="stylesheet" href="style.css">
+
   <style>
     .btn-grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap:14px; }
     @media (max-width: 900px){ .btn-grid{ grid-template-columns: 1fr; } }
@@ -13,7 +14,7 @@
       display:block;
       text-decoration:none;
       color:inherit;
-      background:#0b1220;
+      background:var(--panel);
       border:1px solid var(--border);
       border-radius:14px;
       padding:16px;
@@ -22,25 +23,15 @@
     .bigbtn:hover{ transform: translateY(-2px); border-color: var(--link); }
     .bigbtn h3{ margin:0 0 6px 0; }
     .bigbtn p{ margin:0; color: var(--muted); }
-    .tag{ display:inline-block; margin-top:10px; font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); color:var(--muted); }
+    .tag{ display:inline-block; margin-top:10px; font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); color:var(--muted); background:var(--panel); }
 
     .fineprint{ margin-top:12px; font-size:12px; color:var(--muted); }
   </style>
 </head>
 
 <body>
-  <header>
-    <h1>WFL HUB</h1>
-    <nav>
-  <a href="index.html">Home</a>
-  <a href="schedule.html">Schedule</a>
-  <a href="news.html">News</a>
-  <a href="quiz.html">Quiz</a>
-  <a href="fan-activity.html">Fan Activity</a>
-  <a href="arcade.html">Arcade</a>
-  <a href="wfml-bracket.html">WFML Bracket</a>
-</nav>
-  </header>
+  <div id="nav-placeholder"></div>
+  <script src="nav.js"></script>
 
   <main class="wrap">
     <div class="card">
@@ -48,6 +39,13 @@
       <p class="muted">Quick, no-work ways to participate between games. Pick one.</p>
 
       <div class="btn-grid">
+        <!-- NEW: Holiday Series -->
+        <a class="bigbtn" href="holiday-series.html">
+          <h3>Holiday Series</h3>
+          <p>St. Patrick’s Day • Eid al-Fitr • Week 12 Spring Showcase</p>
+          <span class="tag">New</span>
+        </a>
+
         <a class="bigbtn" href="vote-overrated.html">
           <h3>Vote: Who’s overrated?</h3>
           <p>One-click vote. Then see what the league thinks.</p>
