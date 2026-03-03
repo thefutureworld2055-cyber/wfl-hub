@@ -4,106 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WFL Hub</title>
-
-  <style>
-    body {
-      margin: 0;
-      font-family: system-ui, Arial, sans-serif;
-      background: #0b0f14;
-      color: #e6edf3;
-    }
-
-    header {
-      background: #111827;
-      border-bottom: 2px solid #1f2a37;
-      padding: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    header h1 {
-      margin: 0;
-      font-size: 20px;
-      letter-spacing: 1px;
-    }
-
-    nav a {
-      color: #93c5fd;
-      text-decoration: none;
-      font-weight: 700;
-      margin-left: 16px;
-    }
-
-    nav a:hover {
-      text-decoration: underline;
-    }
-
-    main {
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 2fr 1fr;
-      gap: 16px;
-    }
-
-    .card {
-      background: #0f1623;
-      border: 1px solid #1f2a37;
-      border-radius: 14px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-
-    h2 {
-      margin-top: 0;
-      border-bottom: 1px solid #1f2a37;
-      padding-bottom: 6px;
-    }
-
-    .muted {
-      color: #9aa4b2;
-      font-size: 14px;
-    }
-
-    ul {
-      padding-left: 18px;
-    }
-
-    .btnlink {
-      display: inline-block;
-      margin-top: 8px;
-      color: #93c5fd;
-      text-decoration: none;
-      font-weight: 800;
-    }
-    .btnlink:hover { text-decoration: underline; }
-
-    @media (max-width: 900px) {
-      .grid {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-  <header>
-    <h1>WFL HUB</h1>
- <nav>
-  <a href="index.html">Home</a>
-  <a href="schedule.html">Schedule</a>
-  <a href="news.html">News</a>
-  <a href="quiz.html">Quiz</a>
-  <a href="fan-activity.html">Fan Activity</a>
-  <a href="arcade.html">Arcade</a>
-  <a href="wfml-bracket.html">WFML Bracket</a>
-</nav>
-  </header>
+  <div id="nav-placeholder"></div>
+  <script src="nav.js"></script>
 
   <main>
     <!-- Welcome / What is WFL -->
@@ -158,6 +64,7 @@
           <h2>Fan Activity</h2>
           <p class="muted">Give fans something to click.</p>
           <ul>
+            <li><a class="btnlink" href="holiday-series.html">Holiday Series</a></li>
             <li><a class="btnlink" href="vote-overrated.html">Vote: Who’s overrated?</a></li>
             <li><a class="btnlink" href="predict-upset.html">Predict the upset</a></li>
             <li><a class="btnlink" href="power-rankings-debate.html">Power rankings debate</a></li>
