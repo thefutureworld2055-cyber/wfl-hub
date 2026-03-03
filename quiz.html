@@ -15,7 +15,7 @@
       padding:10px;
       border-radius:10px;
       border:1px solid var(--border);
-      background:#0b1220;
+      background:var(--panel);
       color: var(--text);
       outline:none;
     }
@@ -23,7 +23,7 @@
       padding:10px 14px;
       border-radius:12px;
       border:1px solid var(--border);
-      background:#0b1220;
+      background:var(--panel);
       color:var(--text);
       cursor:pointer;
       font-weight:900;
@@ -36,7 +36,7 @@
       padding:14px;
       border-radius:14px;
       border:1px solid var(--border);
-      background:#0b1220;
+      background:var(--panel);
     }
     .pill{
       display:inline-block;
@@ -54,18 +54,8 @@
 </head>
 
 <body>
-  <header>
-    <h1>WFL HUB</h1>
-<nav>
-  <a href="index.html">Home</a>
-  <a href="schedule.html">Schedule</a>
-  <a href="news.html">News</a>
-  <a href="quiz.html">Quiz</a>
-  <a href="fan-activity.html">Fan Activity</a>
-  <a href="arcade.html">Arcade</a>
-  <a href="wfml-bracket.html">WFML Bracket</a>
-</nav>
-  </header>
+  <div id="nav-placeholder"></div>
+  <script src="nav.js"></script>
 
   <main class="wrap">
     <div class="card">
@@ -147,7 +137,7 @@ const WFL_TEAMS = [
   { name: "New Jerusalem", tags: ["balanced","glory","respect","hero"], blurb: "Big-stage energy with a serious, composed identity." },
   { name: "Jerusalem", tags: ["defense","respect","clutch","loyal"], blurb: "Built on grit and discipline—lives for tense finishes." },
   { name: "Stockholm", tags: ["balanced","respect","dynasty","genius"], blurb: "Clean football, steady control, high standards." },
-  { name: "Springfield", tags: ["chaos","memes","underdog","chaos"], blurb: "Unpredictable and loud—anything can happen." },
+  { name: "Springfield", tags: ["chaos","memes","underdog"], blurb: "Unpredictable and loud—anything can happen." },
   { name: "San Francisco", tags: ["explosive","dynasty","glory","hero"], blurb: "Win-now confidence with fireworks potential." },
   { name: "Tombstone", tags: ["grind","respect","villain","defense"], blurb: "Physical, stubborn, and proud of it." },
   { name: "Wallerock", tags: ["clutch","heartbreak","underdog","loyal"], blurb: "Drama magnet—close games and emotional swings." },
@@ -191,10 +181,8 @@ const WFL_TEAMS = [
 
 /* =========================
    LOCATION MATCHING
-   (very helpful for international fans)
    ========================= */
 const LOCATION_HINTS = [
-  // US
   { keys: ["texas","tx"], boosts: { "Dallas": 3, "Houston": 3 } },
   { keys: ["california","ca","san francisco","sf"], boosts: { "San Francisco": 3, "Los Angeles": 2 } },
   { keys: ["los angeles","la","calif"], boosts: { "Los Angeles": 3 } },
@@ -207,7 +195,6 @@ const LOCATION_HINTS = [
   { keys: ["new york","ny"], boosts: { "New York": 3 } },
   { keys: ["new england","massachusetts","ma","boston"], boosts: { "New England": 3 } },
 
-  // Europe / Middle East / Africa
   { keys: ["germany","berlin"], boosts: { "Berlin": 4 } },
   { keys: ["sweden","stockholm"], boosts: { "Stockholm": 4 } },
   { keys: ["malmo"], boosts: { "Malmo": 4 } },
@@ -233,7 +220,6 @@ const LOCATION_HINTS = [
 
 /* =========================
    NFL VIBE HINTS
-   (light nudge; doesn’t override quiz)
    ========================= */
 const NFL_HINTS = [
   { keys: ["cowboys","dallas"], boosts: { "Dallas": 3 } },
@@ -285,12 +271,10 @@ function applyHint(text, hintList, scores, reasons, label){
 function scoreQuiz(ans){
   const { scores, reasons } = baseScores();
 
-  // Main match: style + vibe
   for (const team of WFL_TEAMS){
     if (team.tags.includes(ans.style)) add(scores, reasons, team.name, 4, `Matches your play style: ${ans.style}`);
     if (team.tags.includes(ans.vibe))  add(scores, reasons, team.name, 3, `Matches your vibe: ${ans.vibe}`);
 
-    // Character flavor
     if (ans.character === "underdog" && team.tags.includes("underdog")) add(scores, reasons, team.name, 2, "Underdog energy");
     if (ans.character === "villain"  && team.tags.includes("villain"))  add(scores, reasons, team.name, 2, "Villain energy");
     if (ans.character === "hero"     && team.tags.includes("hero"))     add(scores, reasons, team.name, 2, "Hero energy");
@@ -299,11 +283,9 @@ function scoreQuiz(ans){
     if (ans.character === "loyal"    && team.tags.includes("loyal"))    add(scores, reasons, team.name, 2, "Loyalty matches this team");
   }
 
-  // Hints: location + NFL team
   applyHint(ans.location, LOCATION_HINTS, scores, reasons, "Location match");
   applyHint(ans.nflTeam, NFL_HINTS, scores, reasons, "NFL vibe match");
 
-  // Pick winner (stable tie-break: alphabetical)
   const ranked = Object.entries(scores).sort((a,b)=>{
     if (b[1] !== a[1]) return b[1]-a[1];
     return a[0].localeCompare(b[0]);
@@ -357,7 +339,8 @@ function setupResultButtons(winner){
   const copyBtn = document.getElementById("btnCopy");
   const savedLabel = document.getElementById("savedTeamLabel");
 
-  const shareText = `I took the WFL Team Finder Quiz and got: ${winner} 🔥 https://thefutureworld2055-cyber.github.io/wfl-hub/quiz.html`;
+  const url = "https://thefutureworld2055-cyber.github.io/wfl-hub/quiz.html";
+  const shareText = `I took the WFL Team Finder Quiz and got: ${winner} 🔥 ${url}`;
 
   saveBtn.onclick = () => {
     saveTeam(winner);
@@ -368,9 +351,7 @@ function setupResultButtons(winner){
 
   shareBtn.onclick = async () => {
     if (navigator.share) {
-      try {
-        await navigator.share({ title: "WFL Team Finder", text: shareText, url: "https://thefutureworld2055-cyber.github.io/wfl-hub/quiz.html" });
-      } catch {}
+      try { await navigator.share({ title: "WFL Team Finder", text: shareText, url }); } catch {}
     } else {
       copyText(shareText);
       alert("Sharing not supported here — copied to clipboard instead.");
@@ -414,7 +395,6 @@ elBtn.addEventListener("click", () => {
 });
 
 elBtnRandom.addEventListener("click", () => {
-  // Random team, but still show the same result UI
   const winner = randomTeam();
   const reasons = {};
   for (const t of WFL_TEAMS) reasons[t.name] = [];
