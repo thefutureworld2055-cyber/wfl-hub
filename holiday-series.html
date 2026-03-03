@@ -1,237 +1,610 @@
 <!doctype html>
 <html>
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>WFL — Holiday Series</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WFL — Holiday Series</title>
+  <link rel="stylesheet" href="style.css">
 
-<style>
-.hero {
-  border:1px solid var(--border);
-  border-radius:16px;
-  padding:18px;
-  background:
-    radial-gradient(900px 260px at 18% 10%, rgba(147,197,253,0.18), transparent 60%),
-    radial-gradient(900px 260px at 82% 0%, rgba(240,138,26,0.12), transparent 60%),
-    #0b1220;
-}
+  <style>
+    /* Page-specific styling (cinematic but still clean) */
+    .hero {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      background:
+        radial-gradient(900px 260px at 18% 10%, rgba(147,197,253,0.18), transparent 60%),
+        radial-gradient(900px 260px at 82% 0%, rgba(240,138,26,0.12), transparent 60%),
+        #0b1220;
+      box-shadow: 0 0 0 1px rgba(147,197,253,0.06) inset;
+    }
 
-.divider {
-  height:1px;
-  background:linear-gradient(90deg,transparent,rgba(147,197,253,0.35),transparent);
-  margin:16px 0;
-}
+    .hero h2 { margin: 0 0 6px 0; }
+    .hero .sub { color: var(--muted); margin: 0; }
 
-.week { margin-top:20px; }
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(147,197,253,0.35), transparent);
+      margin: 16px 0;
+    }
 
-.holiday-head {
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  flex-wrap:wrap;
-  padding:12px;
-  border-radius:14px;
-  border:1px solid rgba(147,197,253,0.25);
-  background:rgba(15,22,35,0.65);
-  margin-bottom:12px;
-}
+    .week {
+      margin-top: 16px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
 
-.holiday-left{
-  display:flex;
-  align-items:center;
-  gap:12px;
-}
+    .week h3 {
+      margin: 0 0 10px 0;
+      font-size: 18px;
+      letter-spacing: 0.2px;
+    }
 
-.holiday-logo{
-  width:64px;
-  height:64px;
-  object-fit:cover;
-  border-radius:12px;
-  border:1px solid rgba(147,197,253,0.18);
-}
+    .holiday-head {
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+      margin-top: 12px;
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(147,197,253,0.25);
+      background: rgba(15,22,35,0.65);
+      box-shadow: 0 0 0 1px rgba(147,197,253,0.05) inset;
+    }
 
-.grid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:14px;
-}
+    .holiday-left{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+      min-width: 240px;
+    }
 
-@media(max-width:900px){
-  .grid{ grid-template-columns:1fr; }
-}
+    .holiday-head .name {
+      font-weight: 950;
+      font-size: 16px;
+      margin: 0;
+    }
 
-.gamecard{
-  border:1px solid var(--border);
-  border-radius:14px;
-  padding:14px;
-  background:#0b1220;
-}
+    .holiday-head .date {
+      color: var(--muted);
+      font-size: 12px;
+      margin: 0;
+    }
 
-.helmets{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:14px;
-  margin-bottom:10px;
-}
+    /* Holiday logo styling */
+    .holiday-logo {
+      width: 64px;
+      height: 64px;
+      object-fit: cover; /* works even if not transparent */
+      border-radius: 14px;
+      border: 1px solid rgba(147,197,253,0.18);
+      background: rgba(11,18,32,0.55);
+      box-shadow:
+        0 10px 22px rgba(0,0,0,0.28),
+        0 0 0 1px rgba(147,197,253,0.06) inset;
+    }
 
-.helmet{
-  width:70px;
-  height:70px;
-  object-fit:contain;
-  background:#000;
-  padding:6px;
-  border-radius:12px;
-  border:1px solid rgba(147,197,253,0.2);
-}
+    .tagrow { display:flex; gap:8px; flex-wrap:wrap; margin-top: 6px; }
+    .tag {
+      display:inline-block;
+      font-size:12px;
+      padding:2px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      color:var(--muted);
+      background:#0b1220;
+    }
+    .tag.hot {
+      border-color: rgba(147,197,253,0.35);
+      color: rgba(147,197,253,0.95);
+      box-shadow: 0 0 0 1px rgba(147,197,253,0.08) inset;
+    }
 
-.vs{
-  font-weight:900;
-  font-size:14px;
-  color:var(--muted);
-}
+    .grid {
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 900px){
+      .grid { grid-template-columns: 1fr; }
+      .holiday-logo { width: 56px; height: 56px; }
+    }
 
-.matchup{
-  font-weight:950;
-  font-size:16px;
-  text-align:center;
-}
+    .gamecard {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #0b1220;
+      padding: 14px;
+      position: relative;
+      overflow: hidden;
+    }
 
-.meta{
-  font-size:13px;
-  color:var(--muted);
-  text-align:center;
-}
+    .gamecard::before{
+      content:"";
+      position:absolute;
+      inset:-2px;
+      background:
+        radial-gradient(500px 160px at 15% 0%, rgba(147,197,253,0.14), transparent 55%),
+        radial-gradient(420px 160px at 90% 0%, rgba(240,138,26,0.10), transparent 55%);
+      pointer-events:none;
+      opacity: 0.8;
+    }
 
-.time{
-  font-weight:900;
-  text-align:center;
-  margin-top:8px;
-}
-</style>
+    .gamecard > * { position: relative; }
+
+    /* ===== HELMET ROW (NEW) ===== */
+    .helmet-row{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin: 0 0 10px 0;
+    }
+    .helmet{
+      width:46px;
+      height:46px;
+      object-fit:contain;
+      border-radius:12px;
+      border:1px solid rgba(147,197,253,0.18);
+      background:#050912; /* helps black backgrounds look intentional */
+      padding:4px;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.25);
+    }
+    .helmet-vs{
+      font-weight: 950;
+      font-size: 12px;
+      color: var(--muted);
+      letter-spacing: 1px;
+      opacity: 0.9;
+    }
+    /* If you ever want bigger helmets later */
+    @media (max-width: 900px){
+      .helmet{ width:44px; height:44px; }
+    }
+    /* ===== END HELMET ROW ===== */
+
+    .matchup {
+      font-weight: 950;
+      font-size: 16px;
+      margin: 0 0 6px 0;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    .time {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      font-weight: 900;
+      margin-top: 10px;
+    }
+
+    .time .dot{
+      width:8px;height:8px;border-radius:999px;
+      background: rgba(147,197,253,0.9);
+      box-shadow: 0 0 14px rgba(147,197,253,0.55);
+    }
+
+    .section-note {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .bigcallout {
+      border: 1px solid rgba(240,138,26,0.25);
+      background: rgba(15,22,35,0.65);
+      border-radius: 14px;
+      padding: 12px 14px;
+      margin: 10px 0 12px;
+      box-shadow: 0 0 0 1px rgba(240,138,26,0.06) inset;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    .bigcallout .title { font-weight: 950; margin: 0 0 4px 0; }
+    .bigcallout .small { margin: 0; color: var(--muted); font-size: 12px; }
+    .bigcallout .right { display:flex; align-items:center; gap:10px; }
+  </style>
 </head>
 
 <body>
+  <header>
+    <h1>WFL HUB</h1>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="schedule.html">Schedule</a>
+      <a href="news.html">News</a>
+      <a href="quiz.html">Quiz</a>
+      <a href="fan-activity.html">Fan Activity</a>
+      <a href="arcade.html">Arcade</a>
+      <a href="wfml-bracket.html">WFML Bracket</a>
+      <a href="holiday-series.html">Holiday Series</a>
+    </nav>
+  </header>
 
-<header>
-<h1>WFL HUB</h1>
-<nav>
-<a href="index.html">Home</a>
-<a href="schedule.html">Schedule</a>
-<a href="news.html">News</a>
-<a href="quiz.html">Quiz</a>
-<a href="fan-activity.html">Fan Activity</a>
-<a href="arcade.html">Arcade</a>
-<a href="wfml-bracket.html">WFML Bracket</a>
-<a href="holiday-series.html">Holiday Series</a>
-</nav>
-</header>
+  <main class="wrap">
+    <div class="card">
+      <div class="hero">
+        <h2>Holiday Series</h2>
+        <p class="sub">
+          The WFL’s culture-weekend slate — special matchups tied to major holidays across the league.
+        </p>
+        <div class="tagrow" style="margin-top:10px;">
+          <span class="tag hot">Featured Games</span>
+          <span class="tag">Week 9–12</span>
+          <span class="tag">All times shown: MT</span>
+        </div>
+      </div>
 
-<main class="wrap">
-<div class="card">
+      <div class="divider"></div>
 
-<div class="hero">
-<h2>Holiday Series</h2>
-<p>The WFL’s culture-weekend slate — special matchups tied to major holidays across the league.</p>
-</div>
+      <!-- WEEK 9 -->
+      <section class="week">
+        <h3>Week 9</h3>
 
-<div class="divider"></div>
+        <div class="holiday-head">
+          <div class="holiday-left">
+            <img class="holiday-logo" src="assets/holidays/st-patricks.png" alt="St. Patrick’s Day logo">
+            <div>
+              <p class="name">St. Patrick’s Day</p>
+              <p class="date">March 17</p>
+            </div>
+          </div>
 
-<!-- Example Game Card Template Used Everywhere -->
+          <div class="tagrow">
+            <span class="tag hot">Holiday Game</span>
+            <span class="tag">Rivalry</span>
+            <span class="tag">Ireland</span>
+          </div>
+        </div>
 
-<section class="week">
-<h3>Week 9 — St. Patrick’s Day (March 17)</h3>
+        <div class="grid">
+          <div class="gamecard">
 
-<div class="grid">
+            <!-- HELMETS (NEW) -->
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/cork.png" alt="Cork helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/dublin.png" alt="Dublin helmet">
+            </div>
 
-<div class="gamecard">
-<div class="helmets">
-<img class="helmet" src="assets/helmets/cork.png">
-<div class="vs">VS</div>
-<img class="helmet" src="assets/helmets/dublin.png">
-</div>
-<div class="matchup">Cork vs Dublin</div>
-<div class="meta">Blarney Shamrock Stadium — Cork, Ireland</div>
-<div class="time">11:00 AM MT</div>
-</div>
+            <p class="matchup">Cork vs Dublin</p>
+            <p class="meta">Blarney Shamrock Stadium — Cork, Ireland</p>
+            <div class="time"><span class="dot"></span><span>11:00 AM MT</span></div>
+            <div class="tagrow">
+              <span class="tag">Holiday Game</span>
+              <span class="tag">Rivalry</span>
+              <span class="tag">Europe</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
-</div>
-</section>
+      <!-- WEEK 10 -->
+      <section class="week">
+        <h3>Week 10</h3>
 
-<section class="week">
-<h3>Week 10 — Eid al-Fitr (March 20)</h3>
+        <div class="holiday-head">
+          <div class="holiday-left">
+            <img class="holiday-logo" src="assets/holidays/eid-al-fitr.png" alt="Eid al-Fitr logo">
+            <div>
+              <p class="name">Eid al-Fitr</p>
+              <p class="date">March 20</p>
+            </div>
+          </div>
 
-<div class="grid">
+          <div class="tagrow">
+            <span class="tag hot">Holiday Game</span>
+            <span class="tag">International</span>
+            <span class="tag">Morning Kick</span>
+          </div>
+        </div>
 
-<div class="gamecard">
-<div class="helmets">
-<img class="helmet" src="assets/helmets/medina.png">
-<div class="vs">VS</div>
-<img class="helmet" src="assets/helmets/arusha.png">
-</div>
-<div class="matchup">Medina vs Arusha</div>
-<div class="meta">Al-Shad Memorial Stadium — Medina, Arabia</div>
-<div class="time">6:00 AM MT</div>
-</div>
+        <div class="grid">
+          <div class="gamecard">
 
-</div>
-</section>
+            <!-- HELMETS (NEW) -->
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/medina.png" alt="Medina helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/arusha.png" alt="Arusha helmet">
+            </div>
 
-<section class="week">
-<h3>Week 12 — Good Friday (April 3)</h3>
+            <p class="matchup">Medina vs Arusha</p>
+            <p class="meta">Al-Shad Memorial Stadium — Medina, Arabia</p>
+            <div class="time"><span class="dot"></span><span>6:00 AM MT</span></div>
+            <div class="tagrow">
+              <span class="tag">Holiday Game</span>
+              <span class="tag">International</span>
+              <span class="tag">Morning Kick</span>
+            </div>
+          </div>
+        </div>
+      </section>
 
-<div class="grid">
-<div class="gamecard">
-<div class="helmets">
-<img class="helmet" src="assets/helmets/new-jerusalem-city.png">
-<div class="vs">VS</div>
-<img class="helmet" src="assets/helmets/paris.png">
-</div>
-<div class="matchup">New Jerusalem City vs Paris</div>
-<div class="meta">Montana Dome — New Jerusalem City, Montana</div>
-<div class="time">11:00 AM MT</div>
-</div>
-</div>
+      <!-- WEEK 12 -->
+      <section class="week">
+        <h3>Week 12</h3>
 
-<h3 style="margin-top:30px;">Passover (April 4)</h3>
+        <div class="holiday-head">
+          <div class="holiday-left">
+            <img class="holiday-logo" src="assets/holidays/good-friday.png" alt="Good Friday logo">
+            <div>
+              <p class="name">Good Friday</p>
+              <p class="date">April 3</p>
+            </div>
+          </div>
 
-<div class="grid">
-<div class="gamecard">
-<div class="helmets">
-<img class="helmet" src="assets/helmets/jerusalem.png">
-<div class="vs">VS</div>
-<img class="helmet" src="assets/helmets/san-francisco.png">
-</div>
-<div class="matchup">Jerusalem vs San Francisco</div>
-<div class="meta">November Stadium — Jerusalem, Israel</div>
-<div class="time">6:00 AM MT</div>
-</div>
-</div>
+          <div class="tagrow">
+            <span class="tag hot">Holiday Game</span>
+            <span class="tag">Spotlight</span>
+            <span class="tag">Cross-Division</span>
+          </div>
+        </div>
 
-<h3 style="margin-top:30px;">Easter Sunday Showcase (April 5)</h3>
+        <div class="grid">
+          <div class="gamecard">
 
-<div class="grid">
+            <!-- HELMETS (NEW) -->
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/new-jerusalem-city.png" alt="New Jerusalem City helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/paris.png" alt="Paris helmet">
+            </div>
 
-<div class="gamecard">
-<div class="helmets">
-<img class="helmet" src="assets/helmets/dallas.png">
-<div class="vs">VS</div>
-<img class="helmet" src="assets/helmets/new-jerusalem.png">
-</div>
-<div class="matchup">Dallas vs New Jerusalem</div>
-<div class="meta">D-Town Metroplex Stadium — Dallas, Texas</div>
-<div class="time">6:00 PM MT</div>
-</div>
+            <p class="matchup">New Jerusalem City vs Paris</p>
+            <p class="meta">Montana Dome — New Jerusalem City, Montana</p>
+            <div class="time"><span class="dot"></span><span>11:00 AM MT</span></div>
+            <div class="tagrow">
+              <span class="tag">Holiday Game</span>
+              <span class="tag">Spotlight</span>
+              <span class="tag">Cross-Division</span>
+            </div>
+          </div>
+        </div>
 
-<!-- You can duplicate this block for all other Easter games the same way -->
+        <div class="holiday-head" style="margin-top:14px;">
+          <div class="holiday-left">
+            <img class="holiday-logo" src="assets/holidays/passover.png" alt="Passover logo">
+            <div>
+              <p class="name">Passover</p>
+              <p class="date">April 4</p>
+            </div>
+          </div>
 
-</div>
+          <div class="tagrow">
+            <span class="tag hot">Holiday Game</span>
+            <span class="tag">Statement Game</span>
+            <span class="tag">Morning Kick</span>
+          </div>
+        </div>
 
-</section>
+        <div class="grid">
+          <div class="gamecard">
 
-</div>
-</main>
+            <!-- HELMETS (NEW) -->
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/jerusalem.png" alt="Jerusalem helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/san-francisco.png" alt="San Francisco helmet">
+            </div>
 
+            <p class="matchup">Jerusalem vs San Francisco</p>
+            <p class="meta">November Stadium — Jerusalem, Israel</p>
+            <div class="time"><span class="dot"></span><span>6:00 AM MT</span></div>
+            <div class="tagrow">
+              <span class="tag">Holiday Game</span>
+              <span class="tag">Statement Game</span>
+              <span class="tag">Morning Kick</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="holiday-head" style="margin-top:14px;">
+          <div class="holiday-left">
+            <img class="holiday-logo" src="assets/holidays/easter-sunday.png" alt="Easter Sunday logo">
+            <div>
+              <p class="name">Easter Sunday</p>
+              <p class="date">April 5</p>
+            </div>
+          </div>
+
+          <div class="tagrow">
+            <span class="tag hot">Showcase Day</span>
+            <span class="tag">13 Games</span>
+            <span class="tag">League-Wide</span>
+          </div>
+        </div>
+
+        <div class="bigcallout">
+          <div>
+            <p class="title">Easter Sunday Showcase</p>
+            <p class="small">13 games • 1 day • league-wide slate (all times MT)</p>
+          </div>
+          <div class="right">
+            <img class="holiday-logo" src="assets/holidays/easter-sunday.png" alt="Easter logo (repeat)">
+            <span class="tag hot">Easter Main Event: Dallas vs New Jerusalem</span>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="gamecard">
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/kiev.png" alt="Kiev helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/lyon.png" alt="Lyon helmet">
+            </div>
+            <p class="matchup">Kiev vs Lyon</p>
+            <p class="meta">Polina Lyubomyrivna Stepanova Stadium — Kiev, Ukraine</p>
+            <div class="time"><span class="dot"></span><span>3:00 AM MT</span></div>
+            <div class="tagrow"><span class="tag">Easter</span><span class="tag">Early</span></div>
+          </div>
+
+          <div class="gamecard">
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/warsaw.png" alt="Warsaw helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/helsinki.png" alt="Helsinki helmet">
+            </div>
+            <p class="matchup">Warsaw vs Helsinki</p>
+            <p class="meta">Zamorski Krajowy Stadium — Warsaw, Poland</p>
+            <div class="time"><span class="dot"></span><span>6:00 AM MT</span></div>
+            <div class="tagrow"><span class="tag">Easter</span><span class="tag">Defense</span></div>
+          </div>
+
+          <div class="gamecard">
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/dublin.png" alt="Dublin helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/zurich.png" alt="Zurich helmet">
+            </div>
+            <p class="matchup">Dublin vs Zurich</p>
+            <p class="meta">Dublin National Stadium — Dublin, Ireland</p>
+            <div class="time"><span class="dot"></span><span>6:00 AM MT</span></div>
+            <div class="tagrow"><span class="tag">Easter</span><span class="tag">Europe</span></div>
+          </div>
+
+          <div class="gamecard">
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/oslo.png" alt="Oslo helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/nicosia.png" alt="Nicosia helmet">
+            </div>
+            <p class="matchup">Oslo vs Nicosia</p>
+            <p class="meta">Longship Field — Oslo, Norway</p>
+            <div class="time"><span class="dot"></span><span>6:00 AM MT</span></div>
+            <div class="tagrow"><span class="tag">Easter</span><span class="tag">Clash</span></div>
+          </div>
+
+          <div class="gamecard">
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/saint-catherine.png" alt="Saint Catherine helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/madrid.png" alt="Madrid helmet">
+            </div>
+            <p class="matchup">Saint Catherine vs Madrid</p>
+            <p class="meta">Catherine’s Blessing Stadium — Saint Catherine, Israel</p>
+            <div class="time"><span class="dot"></span><span>6:00 AM MT</span></div>
+            <div class="tagrow"><span class="tag">Easter</span><span class="tag">Spotlight</span></div>
+          </div>
+
+          <div class="gamecard">
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/stockholm.png" alt="Stockholm helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/springfield.png" alt="Springfield helmet">
+            </div>
+            <p class="matchup">Stockholm vs Springfield</p>
+            <p class="meta">Bro Stadium — Stockholm, Sweden</p>
+            <div class="time"><span class="dot"></span><span>9:00 AM MT</span></div>
+            <div class="tagrow"><span class="tag">Easter</span><span class="tag">Chaos Risk</span></div>
+          </div>
+
+          <div class="gamecard">
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/lisbon.png" alt="Lisbon helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/tombstone.png" alt="Tombstone helmet">
+            </div>
+            <p class="matchup">Lisbon vs Tombstone</p>
+            <p class="meta">Chasers Stadium — Lisbon, Portugal</p>
+            <div class="time"><span class="dot"></span><span>9:00 AM MT</span></div>
+            <div class="tagrow"><span class="tag">Easter</span><span class="tag">Physical</span></div>
+          </div>
+
+          <div class="gamecard">
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/erisdell.png" alt="Erisdell helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/houston.png" alt="Houston helmet">
+            </div>
+            <p class="matchup">Erisdell vs Houston</p>
+            <p class="meta">Erisdell Memorial Stadium — Erisdell, Moon</p>
+            <div class="time"><span class="dot"></span><span>11:00 AM MT</span></div>
+            <div class="tagrow"><span class="tag">Easter</span><span class="tag">Offworld</span></div>
+          </div>
+
+          <div class="gamecard">
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/tampa.png" alt="Tampa helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/berlin.png" alt="Berlin helmet">
+            </div>
+            <p class="matchup">Tampa vs Berlin</p>
+            <p class="meta">Big Guava Field — Tampa, Florida</p>
+            <div class="time"><span class="dot"></span><span>11:00 AM MT</span></div>
+            <div class="tagrow"><span class="tag">Easter</span><span class="tag">Primetime Feel</span></div>
+          </div>
+
+          <div class="gamecard">
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/memphis.png" alt="Memphis helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/sarajevo.png" alt="Sarajevo helmet">
+            </div>
+            <p class="matchup">Memphis vs Sarajevo</p>
+            <p class="meta">Presley Rollin Field — Memphis, Tennessee</p>
+            <div class="time"><span class="dot"></span><span>11:00 AM MT</span></div>
+            <div class="tagrow"><span class="tag">Easter</span><span class="tag">Wild Card</span></div>
+          </div>
+
+          <div class="gamecard">
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/boise.png" alt="Boise helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/miami.png" alt="Miami helmet">
+            </div>
+            <p class="matchup">Boise vs Miami</p>
+            <p class="meta">Western Pioneer Field — Boise, Idaho</p>
+            <div class="time"><span class="dot"></span><span>2:00 PM MT</span></div>
+            <div class="tagrow"><span class="tag">Easter</span><span class="tag">Style Clash</span></div>
+          </div>
+
+          <div class="gamecard">
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/atlanta.png" alt="Atlanta helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/seattle.png" alt="Seattle helmet">
+            </div>
+            <p class="matchup">Atlanta vs Seattle</p>
+            <p class="meta">Peach Orchards Field — Atlanta, Georgia</p>
+            <div class="time"><span class="dot"></span><span>2:00 PM MT</span></div>
+            <div class="tagrow"><span class="tag">Easter</span><span class="tag">Big Game</span></div>
+          </div>
+
+          <div class="gamecard">
+            <div class="helmet-row">
+              <img class="helmet" src="assets/helmets/dallas.png" alt="Dallas helmet">
+              <span class="helmet-vs">VS</span>
+              <img class="helmet" src="assets/helmets/new-jerusalem.png" alt="New Jerusalem helmet">
+            </div>
+            <p class="matchup">Dallas vs New Jerusalem</p>
+            <p class="meta">D-Town Metroplex Stadium — Dallas, Texas</p>
+            <div class="time"><span class="dot"></span><span>6:00 PM MT</span></div>
+            <div class="tagrow">
+              <span class="tag hot">Easter Main Event</span>
+              <span class="tag">Primetime</span>
+              <span class="tag">Must Watch</span>
+            </div>
+          </div>
+        </div>
+
+        <p class="section-note">
+          Next step: if you want, we can add helmet icons to each game card too (home vs away).
+        </p>
+      </section>
+    </div>
+  </main>
 </body>
 </html>
