@@ -6,9 +6,12 @@
   --muted:#9aa4b2;
   --link:#93c5fd;
   --header:#111827;
+  --panel:#0b1220; /* used for embed/inner panels */
 }
 
 *{ box-sizing:border-box; }
+
+html, body{ height:100%; }
 
 body{
   margin:0;
@@ -17,6 +20,9 @@ body{
   color:var(--text);
 }
 
+/* =========================
+   HEADER + NAV
+========================= */
 header{
   background:var(--header);
   border-bottom:2px solid var(--border);
@@ -35,21 +41,53 @@ header h1{
   letter-spacing:1px;
 }
 
+nav{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:10px;
+}
+
 nav a{
   color:var(--link);
   text-decoration:none;
   font-weight:800;
-  margin-left:14px;
+  margin-left:0; /* gap handles spacing */
 }
 
 nav a:hover{ text-decoration:underline; }
 
+/* Optional: highlight current page link */
+nav a.active{
+  text-decoration:underline;
+}
+
+/* =========================
+   LAYOUT WRAPPERS
+========================= */
 .wrap{
   max-width:1100px;
   margin:0 auto;
   padding:18px;
 }
 
+/* If a page uses <main> without class, it still looks right */
+main{
+  max-width:1100px;
+  margin:0 auto;
+  padding:18px;
+}
+
+/* Homepage 2-column grid (matches your index.html look) */
+.grid{
+  display:grid;
+  grid-template-columns: 2fr 1fr;
+  gap:16px;
+}
+
+/* =========================
+   CARDS + HEADINGS
+========================= */
 .card{
   background:var(--card);
   border:1px solid var(--border);
@@ -64,10 +102,39 @@ h2{
   border-bottom:1px solid var(--border);
 }
 
+h3{
+  margin:0 0 8px 0;
+}
+
 .muted{ color:var(--muted); }
 
+.small{ font-size:12px; color:var(--muted); }
+
+.ok{ color:#7cffd1; font-weight:900; }
+.err{ color:#f08a1a; font-weight:900; }
+
+/* =========================
+   LINKS + LISTS
+========================= */
+a{ color:var(--link); }
+
+ul{ padding-left:18px; margin:10px 0; }
+
+/* Homepage-style “button link” */
+.btnlink{
+  display:inline-block;
+  margin-top:8px;
+  color:var(--link);
+  text-decoration:none;
+  font-weight:800;
+}
+.btnlink:hover{ text-decoration:underline; }
+
+/* =========================
+   PANELS / EMBEDS
+========================= */
 .embed-wrap{
-  background:#0b1220;
+  background:var(--panel);
   border:1px solid var(--border);
   border-radius:12px;
   padding:12px;
@@ -75,15 +142,68 @@ h2{
 }
 
 /* Makes the Playpass widget not jam against edges */
-.playpass-widget{
-  width:100%;
-}
+.playpass-widget{ width:100%; }
 
 /* Optional: make links inside embed area readable */
 .embed-wrap a{ color:var(--link); }
 
-/* Mobile */
+/* =========================
+   FORMS + BUTTONS
+========================= */
+button,
+.btn{
+  padding:8px 12px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  background:var(--card);
+  color:var(--text);
+  cursor:pointer;
+  font-weight:900;
+}
+
+button:hover,
+.btn:hover{
+  border-color:var(--link);
+}
+
+select,
+input,
+textarea{
+  width:100%;
+  padding:10px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  background:var(--panel);
+  color:var(--text);
+  outline:none;
+}
+
+select:focus,
+input:focus,
+textarea:focus{
+  border-color:var(--link);
+}
+
+/* =========================
+   TAGS / PILLS (used on fan-activity + holiday pages)
+========================= */
+.tag,
+.pill{
+  display:inline-block;
+  margin-top:10px;
+  font-size:12px;
+  padding:2px 8px;
+  border-radius:999px;
+  border:1px solid var(--border);
+  color:var(--muted);
+  background:var(--panel);
+}
+
+/* =========================
+   MOBILE
+========================= */
 @media (max-width:900px){
   header{ padding:12px; }
-  nav a{ margin-left:10px; }
+  .grid{ grid-template-columns:1fr; }
+  .wrap, main{ padding:14px; }
 }
