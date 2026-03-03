@@ -5,32 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WFL — Hot Take Generator</title>
   <link rel="stylesheet" href="style.css">
+
   <style>
-    button{ padding:10px 14px; border-radius:12px; border:1px solid var(--border); background:#0f1623; color:var(--text); cursor:pointer; font-weight:900; }
-    button:hover{ border-color: var(--link); }
-    .box{ border:1px solid var(--border); background:#0b1220; border-radius:14px; padding:14px; }
+    .box{ border:1px solid var(--border); background:var(--panel); border-radius:14px; padding:14px; }
     .big{ font-size:18px; line-height:1.35; }
     .row{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
-    .small{ font-size:12px; color:var(--muted); }
-    input{
-      width:100%; padding:10px; border-radius:10px; border:1px solid var(--border);
-      background:#0b1220; color:var(--text);
-    }
   </style>
 </head>
+
 <body>
-  <header>
-    <h1>WFL HUB</h1>
-<nav>
-  <a href="index.html">Home</a>
-  <a href="schedule.html">Schedule</a>
-  <a href="news.html">News</a>
-  <a href="quiz.html">Quiz</a>
-  <a href="fan-activity.html">Fan Activity</a>
-  <a href="arcade.html">Arcade</a>
-  <a href="wfml-bracket.html">WFML Bracket</a>
-</nav>
-  </header>
+  <div id="nav-placeholder"></div>
+  <script src="nav.js"></script>
 
   <main class="wrap">
     <div class="card">
@@ -66,21 +51,27 @@
     const payload = {
       secret: SECRET,
       activity,
-      fanName: document.getElementById("nick").value || "",
+      fanName: (document.getElementById("nick").value || "").trim(),
       fanTeam: "",
       choice,
       comment,
-      page: location.href,
-      userAgent: navigator.userAgent
+      page: "hot-take",
+      path: location.pathname,
+      userAgent: navigator.userAgent,
+      ts: Date.now()
     };
+
     try{
       const res = await fetch(WEB_APP_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
-      return data && data.ok;
+
+      const txt = await res.text();
+      let data = null;
+      try { data = JSON.parse(txt); } catch { data = null; }
+      return !!(data && data.ok);
     } catch(e){
       return false;
     }
@@ -94,15 +85,44 @@
     "New Jerusalem City","Paris","Cork","Dublin","New York","Arusha","Medina","Lyon","Palermo","Kiev"
   ];
 
+  // Minor league list (expand anytime)
+  const MINOR_TEAMS = [
+    "Frankfurt Penguins","Cologne Owls","Hamburg Monarchs",
+    "Reykjavik Berserkers","Gothenburg Geese","St. Petersburg Imperials",
+    "Macedon Elephants"
+  ];
+
+  // Templates can accept (a,b,m) where m is a minor league team name
   const TEMPLATES = [
-    (a,b)=> `${a} is 1 ugly win away from becoming the scariest team in the league.`,
-    (a,b)=> `If ${a} beats ${b} this week, the whole power ranking conversation changes.`,
-    (a,b)=> `${a} is being slept on — they’re a matchup nightmare.`,
-    (a,b)=> `${a} is overrated until they prove it against a real defense.`,
-    (a,b)=> `Hot take: ${a} has the best coaching in the WFL right now.`,
-    (a,b)=> `${a} fans don’t want to hear it, but ${b} is built to expose them.`,
-    (a,b)=> `The league isn’t ready for the version of ${a} we’re about to see.`,
-    (a,b)=> `${a} vs ${b} should be the Game of the Week every time.`
+    // Originals (kept)
+    (a,b,m)=> `${a} is 1 ugly win away from becoming the scariest team in the league.`,
+    (a,b,m)=> `If ${a} beats ${b} this week, the whole power ranking conversation changes.`,
+    (a,b,m)=> `${a} is being slept on — they’re a matchup nightmare.`,
+    (a,b,m)=> `${a} is overrated until they prove it against a real defense.`,
+    (a,b,m)=> `Hot take: ${a} has the best coaching in the WFL right now.`,
+    (a,b,m)=> `${a} fans don’t want to hear it, but ${b} is built to expose them.`,
+    (a,b,m)=> `The league isn’t ready for the version of ${a} we’re about to see.`,
+    (a,b,m)=> `${a} vs ${b} should be the Game of the Week every time.`,
+
+    // New WFL takes
+    (a,b,m)=> `${a} is one win away from turning the league into a highlight reel.`,
+    (a,b,m)=> `Fraud Watch: ${a}. I’m not moved until they beat ${b}.`,
+    (a,b,m)=> `${a} is the most “dangerous 6–6 team” of all time.`,
+    (a,b,m)=> `If ${a} gets home-field, the playoffs are basically over.`,
+    (a,b,m)=> `${a} has the best uniforms and it’s not close. (Yes that matters.)`,
+    (a,b,m)=> `${a} should start resting starters early — they’re already a lock.`,
+    (a,b,m)=> `${a} is wasting elite talent with conservative play-calling.`,
+    (a,b,m)=> `The refs are not why ${a} is losing. Let it go.`,
+    (a,b,m)=> `${a} fans are louder online than they are in the stadium.`,
+    (a,b,m)=> `This is the year ${a} finally becomes a real villain team.`,
+
+    // New Minor League promotion takes
+    (a,b,m)=> `Hot take: ${m} deserves a WFL promotion. Give them ${a}'s spot.`,
+    (a,b,m)=> `${m} would beat ${a} right now. I said what I said.`,
+    (a,b,m)=> `${m} should be promoted — their fanbase is carrying the league.`,
+    (a,b,m)=> `If we’re serious about expansion, ${m} is the first team you call up.`,
+    (a,b,m)=> `Put ${m} in the WFL and watch the ratings spike overnight.`,
+    (a,b,m)=> `${m} has a better identity than ${a}. Promotion/relegation would expose it.`
   ];
 
   const KEY = "wfl_hot_take";
@@ -110,7 +130,10 @@
   const stampEl = document.getElementById("stamp");
   const statusEl = document.getElementById("status");
 
-  function setStatus(msg){ statusEl.textContent = msg || ""; }
+  function setStatus(msg, kind=""){
+    statusEl.className = "small " + (kind === "ok" ? "ok" : kind === "err" ? "err" : "");
+    statusEl.textContent = msg || "";
+  }
 
   function pickRand(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 
@@ -118,10 +141,12 @@
     const a = pickRand(TEAMS);
     let b = pickRand(TEAMS);
     while (b === a) b = pickRand(TEAMS);
-    const t = pickRand(TEMPLATES)(a,b);
-    const stamped = `${t}`;
-    localStorage.setItem(KEY, stamped);
-    takeEl.textContent = stamped;
+    const m = pickRand(MINOR_TEAMS);
+
+    const t = pickRand(TEMPLATES)(a,b,m);
+    localStorage.setItem(KEY, t);
+
+    takeEl.textContent = t;
     stampEl.textContent = `Generated: ${new Date().toLocaleString()}`;
     setStatus("");
   }
@@ -138,21 +163,21 @@
   document.getElementById("copy").onclick = async () => {
     try{
       await navigator.clipboard.writeText(takeEl.textContent);
-      setStatus("✅ Copied!");
+      setStatus("✅ Copied!", "ok");
     }catch(e){
-      setStatus("⚠️ Could not copy on this browser.");
+      setStatus("⚠️ Could not copy on this browser.", "err");
     }
   };
 
   document.getElementById("submit").onclick = async () => {
-    const t = takeEl.textContent || "";
+    const t = (takeEl.textContent || "").trim();
     if (!t || t.includes("Click “Generate”")){
-      setStatus("Generate a take first.");
+      setStatus("Generate a take first.", "err");
       return;
     }
     setStatus("Submitting…");
     const ok = await sendActivity("Hot Take Generator", t, "");
-    setStatus(ok ? "✅ Sent to WFL results." : "⚠️ Submit failed (you can still copy/share it).");
+    setStatus(ok ? "✅ Sent to WFL results." : "⚠️ Submit failed (you can still copy/share it).", ok ? "ok" : "err");
   };
 
   document.getElementById("clear").onclick = () => {
